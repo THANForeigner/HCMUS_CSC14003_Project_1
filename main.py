@@ -52,7 +52,7 @@ if __name__ == "__main__":
     sa = SimulatedAnnealingContinuous(
         ranges=[-5.12, 5.12],
         function=sphere_function,
-        dim=2,              # CHỈNH VỀ 2 CHIỀU ĐỂ VẼ 3D
+        dim=2,              # CHỈNH VỀ 2 CHIỀU ĐỂ VẼ 3D`    `
         T=1000,           
         alpha=0.99,       
         step_size=0.3,    

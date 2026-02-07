@@ -4,12 +4,12 @@ import random
 class SimulatedAnnealingContinuous:
     def __init__(self, ranges, function, T=-1, dim = -1, step_size = -1,
                  alpha=-1, stopping_T=-1, stopping_iter=-1):
-        self.ranges = ranges
-        self.function = function
+        self.ranges = ranges 
+        self.function = function 
         self.step_size = 0.1 if step_size == -1 else step_size
         self.D = 2 if dim == -1 else dim
-        self.T=1000 if T == -1 else T
-        self.save_T = self.T
+        self.T=1000 if T == -1 else T #Temperature
+        self.save_T = self.T #Store temparature for batch simulated annealling
         self.alpha = alpha if alpha >= 0 and alpha <=1 else 0.995
         self.stopping_T = 1e-8 if stopping_T == -1 else stopping_T
         self.stopping_iter = 100000 if stopping_iter == -1 else stopping_iter
