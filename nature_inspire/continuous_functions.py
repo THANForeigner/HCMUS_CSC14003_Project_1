@@ -14,15 +14,11 @@ def rastrigin_function(coords):
 def rosenbrock_function(coords):
     return sum(100 * (coords[i+1] - coords[i]**2)**2 + (1 - coords[i])**2 for i in range(len(coords) - 1))
 
-
-
 # Griewank function formula
 def griewank_function(coords):
     term_1 = sum(x**2 for x in coords) / 4000
     term_2 = math.prod(math.cos(x / math.sqrt(i + 1)) for i, x in enumerate(coords))
     return 1 + term_1 - term_2
-
-
 
 # Ackley function formula
 def ackley_function(coords):
