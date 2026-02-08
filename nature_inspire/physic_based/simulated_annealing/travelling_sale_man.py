@@ -67,7 +67,7 @@ class SimulatedAnnellingTsp(object):
                         
                         new_solution_result = self.calculate_total_distance(new_solution_nodes)
                         delta_energy = new_solution_result - self.cur_solution_result
-                        if(delta_energy < 0):
+                        if(delta_energy <= 0):
                                 self.cur_solution_nodes = new_solution_nodes
                                 self.cur_solution_result = new_solution_result
                                 if(new_solution_result < self.best_solution_result):
