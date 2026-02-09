@@ -1,74 +1,53 @@
-from nature_inspire.physic_based.simulated_annealing.travelling_sale_man import SimulatedAnnellingTsp
-from nature_inspire.physic_based.simulated_annealing.continuos_functions import SimulatedAnnealingContinuous
-from nature_inspire.physic_based.simulated_annealing.graph_coloring import SimulateAnneallingGraphColoring
+import nature_inspire.physic_based.simulated_annealing as sa
+import nature_inspire.biology_based.particle_swarm_optimization.continous_functions as pso
 import matplotlib.pyplot as plt
 import random
-import nature_inspire.continuous_functions
+import nature_inspire.continuous_functions as cf
 import numpy as np
 
-def generate_random_graph(num_vertices, density=0.5):
-    """
-    Generate a random graph.
-    density: Probability of an edge between any two vertices (0.0 -> 1.0)
-    """
-    edges = []
-    for i in range(num_vertices):
-        for j in range(i + 1, num_vertices):
-            if random.random() < density:
-                edges.append((i, j))
-    return edges
-
-def print_graph_info(num_vertices, edges):
-    print(f"Graph Generated: {num_vertices} vertices, {len(edges)} edges.")
-    print("-" * 40)
-
-def validate_result(edges, solution):
-    """Independent verification of the solution"""
-    conflicts = 0
-    for u, v in edges:
-        if solution[u] == solution[v]:
-            conflicts += 1
-    return conflicts
-
-# ==========================================
-# PART 3: MAIN FUNCTION
-# ==========================================
 if __name__ == "__main__":
-    # 1. Configuration
-    NUM_VERTICES = 20    # Number of nodes
-    MAX_COLORS = 4       # Number of available colors
-    DENSITY = 0.4        # Edge density (higher = harder to color)
-    
-    # 2. Generate Test Data
-    print(">>> Generating test data...")
-    edges = generate_random_graph(NUM_VERTICES, DENSITY)
-    print_graph_info(NUM_VERTICES, edges)
-
-    # 3. Initialize Algorithm
-    # T (Temperature): Higher helps escape local optima
-    # Alpha: Cooling rate (0.995 = slow/thorough, 0.90 = fast/greedy)
-    sa = SimulateAnneallingGraphColoring(
-        max_colors=MAX_COLORS, 
-        max_vertices=NUM_VERTICES, 
-        edges=edges, 
-        T=10.0, 
-        alpha=0.995,
-        stopping_iter=50000
+    DIMENSION = 2           
+    BOUNDS = [-5.12, 5.12]  
+    SWARM_SIZE = 50         
+    MAX_ITER = 100          
+    function = cf.rastrigin_function
+    print(f"--- Starting PSO test with Sphere function ({DIMENSION} dimensions) ---")
+    optimizer = pso.ParticleSwarmOptimization(
+        function=function,
+        dimension=DIMENSION,
+        ranges=BOUNDS,
+        swarm_size=SWARM_SIZE,
+        max_interation=MAX_ITER  
     )
+    optimizer.particle_swarm_optimization()
+    print("\n--- RESULTS ---")
+    print(f"Global Best Fitness: {optimizer.g_best:.10f}")
+    best_pos_rounded = np.round(optimizer.g_best_pos, 5)
+    print(f"Global Best Position: {best_pos_rounded}")
+    if DIMENSION == 2:
+        print("\nDrawing...")
+        x = np.linspace(BOUNDS[0], BOUNDS[1], 100)
+        y = np.linspace(BOUNDS[0], BOUNDS[1], 100)
+        X, Y = np.meshgrid(x, y)
+        Z = np.zeros_like(X)
+        for i in range(X.shape[0]):
+            for j in range(X.shape[1]):
+                Z[i, j] = function([X[i, j], Y[i, j]])
 
-    # 4. Run Algorithm
-    # We run it multiple times to avoid bad random starting points
-    sa.batch_annealling(times=5)
+        plt.figure(figsize=(10, 8))
+        plt.contourf(X, Y, Z, levels=50, cmap='viridis')
+        plt.colorbar(label='Fitness Value')
 
-    # 5. Print Final Results
-    print("\n>>> FINAL RESULTS:")
-    print(f"Lowest Energy (conflicting edges): {sa.best_energy}")
-    print(f"Color Assignment: {sa.best_solution}")
+        plt.scatter(0, 0, color='white', marker='x', s=100, label='True Global Min (0,0)')
 
-    # 6. Double Check
-    real_conflicts = validate_result(edges, sa.best_solution)
-    if real_conflicts == 0:
-        print("\n SUCCESS: Valid graph coloring found!")
-    else:
-        print(f"\n FAILURE: {real_conflicts} edges still have conflicts.")
-        print("Tip: Try increasing the number of colors or the stopping iterations.")
+        found_x = optimizer.g_best_pos[0]
+        found_y = optimizer.g_best_pos[1]
+        plt.scatter(found_x, found_y, color='red', marker='o', s=100, edgecolors='black', label='PSO Result')
+
+        plt.title(f'PSO Result on Sphere Function\nBest Fitness: {optimizer.g_best:.6f}')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.5)
+        
+        plt.show()
