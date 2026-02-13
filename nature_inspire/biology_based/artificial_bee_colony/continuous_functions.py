@@ -28,9 +28,11 @@ class Bee:
         return fitness
     
     def _explore(self, partner_coords):
-        des_coords = partner_coords
-        new_coords = self.coords + random.uniform(-1,1) * (self.coords - des_coords)
-        new_coords = np.clip(new_coords, self.bounds[0], self.bounds[1])
+        new_coords = self.coords.copy()
+        j = random.randint(0, self.dimension - 1)
+        phi = random.uniform(-1, 1)
+        new_coords[j] = self.coords[j] + phi * (self.coords[j] - partner_coords[j])
+        new_coords[j] = np.clip(new_coords[j], self.bounds[0], self.bounds[1])
         new_fitness = self.getfitness(new_coords)
         if self.fitness < new_fitness:
             self.fitness = new_fitness
@@ -52,12 +54,12 @@ class EmployeeBee (Bee):
     
 class OnlookerBee (Bee):
     def explore(self, selected_bee, partner_bee):
-        self.coords = selected_bee.coords
+        self.coords = selected_bee.coords.copy()
         self.fitness = selected_bee.fitness
         self.trial = selected_bee.trial 
         is_improved = self._explore(partner_bee.coords)
         if is_improved:
-            selected_bee.coords = self.coords
+            selected_bee.coords = self.coords.copy()
             selected_bee.fitness = self.fitness
             selected_bee.trial = 0
         else:
@@ -73,7 +75,6 @@ class ArtificialBeeColony:
         self.trial_limit = limit
         self.iter = 0
         self.max_iter = max_iteration
-        self.best_bee = Bee(self.ranges, self.function, self.trial_limit, self.dimension)
         self.employee_bees = [
             EmployeeBee(self.ranges, self.function, self.trial_limit, self.dimension)
             for _ in range (0, self.food_size)
@@ -82,6 +83,8 @@ class ArtificialBeeColony:
             OnlookerBee(self.ranges, self.function, self.trial_limit, self.dimension)
             for _ in range(self.food_size)
         ]
+        initial_best = max(self.employee_bees, key=lambda bee: bee.fitness)
+        self.best_bee = copy.deepcopy(initial_best)
         self.fitness_history = []
         
     def artificial_bee_colony(self):
