@@ -1,7 +1,7 @@
 # --- KNAPSACK ---
 
 import random
-from genetic_algorithm import GeneticAlgorithm
+from .genetic_algorithm import GeneticAlgorithm
 
 
 
