@@ -48,7 +48,7 @@ class ParticleSwarmOptimization:
                 self.g_best_pos = particle.p_best_pos.tolist().copy()
             self.swarm.append(particle)
             
-    def particle_swarm_optimization(self):
+    def PSO(self):
         while self.iter < self.max_iter:
             #compute new velocity
             for part in self.swarm:

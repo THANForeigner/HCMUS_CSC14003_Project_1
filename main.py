@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # Import 3D toolkit
-import nature_inspire.biology_based.particle_swarm_optimization.continous_functions as pso
+import nature_inspire.biology_based.particle_swarm_optimization.particle_swarm_optimization as pso
 import nature_inspire.continuous_functions as cf
 
 if __name__ == "__main__":
