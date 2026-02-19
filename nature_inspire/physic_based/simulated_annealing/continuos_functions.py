@@ -64,7 +64,7 @@ class SimulatedAnnealingContinuous:
                     self.best_coords = new_coords
             else:
                 p_accept = math.exp(-delta_energy / self.T)
-                if random.random() < p_accept:
+                if random.uniform(0,1) < p_accept:
                     self.cur_coords = new_coords
                     self.cur_result = new_result
             self.T *= self.alpha

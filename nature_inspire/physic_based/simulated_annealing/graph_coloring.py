@@ -64,7 +64,7 @@ class SimulateAnneallingGraphColoring(object):
                     self.best_solution = new_solution
             else:
                 p_accept = math.exp(-delta_energy/self.T)
-                if random.random() < p_accept:
+                if random.uniform(0,1) < p_accept:
                     self.cur_energy = new_energy
                     self.cur_solution = new_solution
             self.T = self.T * self.alpha

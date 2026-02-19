@@ -76,7 +76,7 @@ class SimulatedAnnellingTsp(object):
                                         self.best_energy = new_solution_result
                         else:
                                 p_accept = math.exp(-delta_energy/self.T)
-                                if random.random() < p_accept:
+                                if random.uniform(0,1) < p_accept:
                                         self.cur_solution_nodes = new_solution_nodes
                                         self.cur_solution_result = new_solution_result   
                         self.T *= self.alpha
