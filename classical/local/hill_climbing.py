@@ -34,7 +34,7 @@ class HillClimbing:
                 self.current_state = neighbor
                 self.current_fitness = new_fitness
 
-    def solve(self, num_iteration):
+    def run(self, num_iteration):
         for _ in range(num_iteration):
             best_fitness = self.current_fitness
             self.climbing_phase()

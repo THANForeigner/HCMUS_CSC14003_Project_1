@@ -1,7 +1,7 @@
 import math
 import random
 
-class SimulateAnneallingGraphColoring(object):
+class SA_GraphColoring(object):
     def __init__ (self, max_colors: int, max_vertices: int, edges: list, T=-1, stopping_T = -1, alpha = -1, stopping_iter=-1):
         self.max_colors = max_colors
         self.max_n = max_vertices
@@ -18,7 +18,7 @@ class SimulateAnneallingGraphColoring(object):
         self.best_energy = float('inf')
         self.energy_list = []
         
-    #The graph energy will be the number of edges that have the same colors in both ends
+    #The graph energy will be the number of nodes that have color conflict with adjacent nodes
     def get_graph_energy(self, colored_graph):
         energy = 0
         for u,v in self.edges:
@@ -26,12 +26,14 @@ class SimulateAnneallingGraphColoring(object):
                 energy += 1
         return energy
     
+    #Generate the initial colored graph by randoming the colors in every nodes
     def initial_solution(self):
         return [random.randrange(self.max_colors) for _ in range(self.max_n)]
     
-    def generate_new_solution(self, current_solution, node):
+    #Get the neighbour state using the One-node Move
+    def generate_new_solution(self, current_solution, node): 
         new_sol = current_solution.copy()
-        old_color = current_solution[node]
+        old_color = current_solution[node] 
         if self.max_colors > 1:
             new_color = random.randrange(self.max_colors)
             while new_color == old_color:
@@ -42,18 +44,24 @@ class SimulateAnneallingGraphColoring(object):
     def get_next_node(self):
         return random.randint(0, self.max_n-1)        
     
-    def simulated_annealling(self):
+    def simulated_annealing(self):
+        
+        #Generate the initial state
         self.cur_solution = self.initial_solution()
         self.cur_energy = self.get_graph_energy(self.cur_solution)
         self.energy_list.append(self.cur_energy)
+        
         if self.cur_energy < self.best_energy:
              self.best_energy = self.cur_energy
-             self.best_solution = self.cur_solution[:]
+             self.best_solution = self.cur_solution.copy()
         while self.T >= self.stopping_T and self.iteration < self.stopping_iter:
-            if self.best_energy == 0:
+            if self.best_energy == 0: #Exit when reach the most optimal result, a valid colored graph
                 break
+            
+            #Generate neighbour state using One-node Move
             rand_node = self.get_next_node()
             new_solution = self.generate_new_solution(self.cur_solution, rand_node)
+            
             new_energy = self.get_graph_energy(new_solution)
             delta_energy = new_energy - self.cur_energy
             if delta_energy <= 0:
@@ -70,11 +78,15 @@ class SimulateAnneallingGraphColoring(object):
             self.T = self.T * self.alpha
             self.iteration += 1 
             self.energy_list.append(self.cur_energy)
-            
-    def batch_annealling(self, times = 1000):
+    
+    #Batch annealing to repeat simulated annealing in order to increase the accuracy of the result        
+    def batch_annealing(self, times = 1000):
         for i in range (1, times + 1):
             if self.best_energy == 0:
                 break
             self.T = self.save_T
             self.iteration = 1
-            self.simulated_annealling()
+            self.simulated_annealing()
+            
+    def run(self, times = 100):
+        self.batch_annealing(times)

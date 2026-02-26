@@ -1,11 +1,9 @@
-# --- GRAPH COLORING ---
-
 import random
-from genetic_algorithm import GeneticAlgorithm
+from genetic_algorithm import GA
 
 
 
-class GeneticAlgorithmGraphColoring(GeneticAlgorithm):
+class GA_GraphColoring(GA):
     def __init__(self, adj_matrix, num_colors, max_local_search_steps=50, **kwargs):
         """
         :param adj_matrix: Ma trận kề (NxN). adj_matrix[i][j] = 1 nếu có cạnh nối.

@@ -19,7 +19,7 @@ class AStarKnapsack:
         # Sort items by value/weight ratio in descending order for linear relaxation
         self.items.sort()
 
-    def solve(self):
+    def run(self):
         # Priority Queue stores tuples: (-upper_bound, -current_value, level, current_weight, taken_indices_list)
         # Using negative for max-heap behavior on UB and Value (since heapq is min-heap)
         

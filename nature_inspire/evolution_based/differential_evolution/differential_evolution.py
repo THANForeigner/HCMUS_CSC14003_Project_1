@@ -2,7 +2,7 @@ import numpy as np
 
 
 
-class DifferentialEvolution:
+class DE:
     def __init__(self, func, bounds, dim, pop_size=50, max_gen=1000, F=0.5, Cr=0.7):
         """
         func: (Sphere, Rastrigin...)

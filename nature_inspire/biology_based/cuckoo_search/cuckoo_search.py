@@ -43,7 +43,7 @@ class CS:
         self.pa = 0.25  # Xác suất bị phát hiện
         self.beta = 1.5  # Tham số Levy
 
-    def solve(self):
+    def run(self):
         # 1. Khởi tạo tổ chim
         nests = np.random.uniform(self.lb, self.ub, (self.n_nests, self.dim))
         fitness = np.apply_along_axis(self.func, 1, nests)

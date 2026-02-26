@@ -1,11 +1,9 @@
-# --- TSP ---
-
 import random
-from genetic_algorithm import GeneticAlgorithm
+from genetic_algorithm import GA
 
 
 
-class GeneticAlgorithmTSP(GeneticAlgorithm):
+class GA_TSP(GA):
     def __init__(self, distance_matrix, local_search_prob=0.5, **kwargs):
         super().__init__(**kwargs)
         self.matrix = distance_matrix

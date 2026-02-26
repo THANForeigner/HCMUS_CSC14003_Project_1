@@ -1,11 +1,9 @@
-# --- Basic Genetic Algorithm
-
 from abc import ABC, abstractmethod
 import random
 
 
 
-class GeneticAlgorithm(ABC):
+class GA(ABC):
     def __init__(self, pop_size=50, generations=100, mutation_rate=0.1, elitism=True):
         self.pop_size = pop_size
         self.generations = generations

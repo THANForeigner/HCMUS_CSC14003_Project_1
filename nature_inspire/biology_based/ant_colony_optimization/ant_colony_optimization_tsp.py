@@ -21,7 +21,7 @@ class ACO_TSP:
                 else:
                     self.visibility[i][j] = 0.0
 
-    def solve(self):
+    def run(self):
         best_path = None
         best_cost = float('inf')
         
