@@ -7,7 +7,7 @@ BETA = 4  # Heuristic importance
 RHO = 0.04  # Evaporation rate
 P_BEST = 0.05  # Probability for calculating tau limits
 
-class ACOColoring:
+class ACO_GraphColoring:
     def __init__(self, graph_dict, n_nodes, max_iter=100, n_ants=20):
         self.graph = graph_dict
         self.n = n_nodes
@@ -31,7 +31,7 @@ class ACOColoring:
         self.tau_min = 0.001
         self.pheromone = np.ones((n_nodes + 1, n_nodes + 1)) * self.tau_max
 
-    def solve(self):
+    def run(self):
         best_global_solution = None
         best_global_k = float('inf')  # Số màu ít nhất
         best_global_score = -1  # Điểm hàm mục tiêu Eq(13) cao nhất

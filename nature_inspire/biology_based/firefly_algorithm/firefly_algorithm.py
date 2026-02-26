@@ -19,7 +19,7 @@ class FA:
         self.beta0 = 1.0  # Sức hút tại khoảng cách r=0
         self.gamma = 1.0  # Hệ số hấp thụ ánh sáng (Light absorption)
 
-    def solve(self):
+    def run(self):
         # 1. Khởi tạo quần thể đom đóm
         fireflies = np.random.uniform(self.lb, self.ub, (self.pop_size, self.dim))
         fitness = np.apply_along_axis(self.func, 1, fireflies)

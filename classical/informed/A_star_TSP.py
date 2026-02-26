@@ -6,7 +6,7 @@ class AStarTSP:
         self.matrix = distance_matrix
         self.n = len(distance_matrix)
         
-    def solve(self):
+    def run(self):
         start_node = 0
         initial_mask = 1 << start_node
         initial_path = [start_node]

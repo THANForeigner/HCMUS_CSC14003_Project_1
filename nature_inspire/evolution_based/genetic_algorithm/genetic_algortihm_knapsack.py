@@ -1,11 +1,9 @@
-# --- KNAPSACK ---
-
 import random
-from .genetic_algorithm import GeneticAlgorithm
+from .genetic_algorithm import GA
 
 
 
-class GeneticAlgorithmKnapsack(GeneticAlgorithm):
+class GA_Knapsack(GA):
     def __init__(self, weights, values, capacity, **kwargs):
         super().__init__(**kwargs) 
         self.weights = weights

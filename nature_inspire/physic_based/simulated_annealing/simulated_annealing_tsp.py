@@ -1,8 +1,7 @@
 import math
 import random
-import matplotlib.pyplot as plt
 
-class SimulatedAnnellingTsp(object):
+class SA_TSP(object):
         def __init__(self, max_vertices: int, coords, T=-1, stopping_T = -1, alpha = -1, stopping_iter=-1):
                 self.coords=coords
                 self.max_n=max_vertices
@@ -33,6 +32,9 @@ class SimulatedAnnellingTsp(object):
                         dist += self.calculate_distance(u, v)
                 return dist
         
+        #Generate the initial state using simple greedy algorithm:
+        #- Start from a city and tranverse through the graph
+        #- Find the next shortest distance and add that node to the graph
         def initial_solution(self):
                 cur_node = random.choice(self.nodes)
                 solution = 0
@@ -56,14 +58,18 @@ class SimulatedAnnellingTsp(object):
                 
                 return solution, solution_list
         
-        def simulated_annealling(self):
+        def simulated_annealing(self):
+                
+                #Generate the intial state
                 self.cur_solution_result, self.cur_solution_nodes = self.initial_solution()
                 
                 while self.T >= self.stopping_T and self.iteration < self.stopping_iter:
+                        
+                        #Generate next neighbour state using the Reverse (2 - opt)
                         new_solution_nodes = list(self.cur_solution_nodes)
-                        l = random.randint(2, self.max_n - 1)
-                        i = random.randint(0, self.max_n - l)
-                        new_solution_nodes[i : (i + l)] = reversed(new_solution_nodes[i : (i + l)])
+                        l = random.randint(2, self.max_n - 1) #Generate a random length for the route
+                        i = random.randint(0, self.max_n - l) #Generate a random starting city for the route
+                        new_solution_nodes[i : (i + l)] = reversed(new_solution_nodes[i : (i + l)]) #Reverse all edges on the route
                         
                         new_solution_result = self.calculate_total_distance(new_solution_nodes)
                         delta_energy = new_solution_result - self.cur_solution_result
@@ -83,8 +89,12 @@ class SimulatedAnnellingTsp(object):
                         self.iteration += 1 
                         self.energy_list.append(self.cur_solution_result)
                         
-        def batch_annealling(self, times = 10):
+        #Batch annealing to repeat simulated annealing in order to increase the accuracy of the result                  
+        def batch_annealing(self, times = 10):
                 for i in range (1, times + 1):
                         self.T = self.save_T
                         self.iteration = 1
-                        self.simulated_annealling()
+                        self.simulated_annealing()
+                        
+        def run(self, times = 10):
+                self.batch_annealing(times)

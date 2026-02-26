@@ -5,7 +5,7 @@ THRESHOLD_FITNESS = 0.01
 TF = 2
 
 
-class TeachingLearingBasedOptimization:
+class TLBO:
     def __init__(
         self, lower_bound, upper_bound, num_parameters, population_size
     ) -> None:
@@ -65,7 +65,7 @@ class TeachingLearingBasedOptimization:
                 self.population[i] = new_candidate
                 self.fitness_values[i] = new_fitness
 
-    def solve(self, num_iteration):
+    def run(self, num_iteration):
         for _ in range(num_iteration):
             best_fitness = min(self.fitness_values)
             self.teaching_phase()

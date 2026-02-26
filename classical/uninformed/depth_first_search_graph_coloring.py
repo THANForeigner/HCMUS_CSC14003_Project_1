@@ -1,5 +1,5 @@
 
-class DFSColoring:
+class DFS_GraphColoring:
     def __init__(self, graph, n_nodes, n_colors):
         self.graph = graph
         self.n = n_nodes
