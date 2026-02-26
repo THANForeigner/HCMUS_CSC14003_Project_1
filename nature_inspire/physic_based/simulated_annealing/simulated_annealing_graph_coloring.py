@@ -88,5 +88,5 @@ class SA_GraphColoring(object):
             self.iteration = 1
             self.simulated_annealing()
             
-    def run(self, times = 100):
+    def run(self, times = 1000):
         self.batch_annealing(times)
