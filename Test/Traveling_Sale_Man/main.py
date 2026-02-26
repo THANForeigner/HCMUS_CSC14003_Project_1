@@ -1,34 +1,23 @@
 from __future__ import annotations
 import os
 import sys
+
+# Ensure project root and necessary module paths are in sys.path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, '..', '..'))
+sys.path.append(PROJECT_ROOT)
+sys.path.append(os.path.join(PROJECT_ROOT, 'nature_inspire', 'evolution_based', 'genetic_algorithm'))
+
 import time
 import math
 import tracemalloc
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple, Any
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'nature_inspire', 'evolution_based', 'genetic_algorithm'))
-
-try:
-    from nature_inspire.biology_based.ACO_TSP import ACO_TSP
-    from classical.informed.A_star_TSP import AStarTSP
-except ImportError:
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    try:
-        from nature_inspire.biology_based.ACO_TSP import ACO_TSP
-        from classical.informed.A_star_TSP import AStarTSP
-    except ImportError as e:
-        print(f"Algorithm Import Error: {e}")
-try:
-    from traveling_salesman_problem import GeneticAlgorithmTSP
-except ImportError:
-    try:
-        from nature_inspire.evolution_based.genetic_algorithm.traveling_salesman_problem import GeneticAlgorithmTSP
-    except ImportError as e:
-         print(f"GA Import Error: {e}")
-         pass
+from classical.informed.A_star_TSP import AStarTSP
+from classical.local.hill_climbing_tsp import HillClimbingTSP
+from nature_inspire.biology_based.ant_colony_optimization.ant_colony_optimization_tsp import ACO_TSP
+from nature_inspire.evolution_based.genetic_algorithm.genetic_algorithm_tsp import GeneticAlgorithmTSP
  
 
 try:
@@ -157,6 +146,16 @@ def run_ga_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, L
         print(f"GA Error: {e}")
         import traceback
         traceback.print_exc()
+        return None
+
+def run_hill_climbing_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
+    matrix = calculate_distance_matrix(points)
+    solver = HillClimbingTSP(matrix, max_iterations=500, restarts=20)
+    try:
+        cost, path = solver.solve()
+        return cost, path
+    except Exception as e:
+        print(f"Hill Climbing Error: {e}")
         return None
 
 # --- BENCHMARK ---
@@ -293,8 +292,12 @@ def main():
     print("\n--- Benchmarking GA ---")
     ga_series = bench_series("GA", run_ga_wrapper, TESTS_DIR, NUM_CASES)
     
+    # Run Hill Climbing
+    print("\n--- Benchmarking Hill Climbing ---")
+    hc_series = bench_series("Hill Climbing", run_hill_climbing_wrapper, TESTS_DIR, NUM_CASES)
+    
     # Plot
-    plot_results([astar_series, aco_series, ga_series])
+    plot_results([astar_series, aco_series, ga_series, hc_series])
     print("\nBenchmark Completed.")
 
 if __name__ == "__main__":
