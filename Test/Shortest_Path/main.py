@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple, Any
 
 # --- IMPORTS ---
-from classical.uninformed.BFS import BFS
-from classical.uninformed.DFS import DFS
-from classical.uninformed.UCS import UCS
-from classical.informed.greedy_best_first import GBFS
-from nature_inspire.biology_based.ACO import ACO
+from classical.uninformed.breath_first_search_shortest_path import BFS
+from classical.uninformed.depth_first_search_shortest_path import DFS
+from classical.uninformed.uniform_cost_search import UCS
+from classical.informed.greedy_best_first_search_shortest_path import GBFS
+from nature_inspire.biology_based.ant_colony_optimization.ant_colony_optimization import ACO
 
 try:
     import matplotlib.pyplot as plt
@@ -19,6 +19,11 @@ try:
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
     print("Warning: matplotlib not found. Plotting disabled.")
+
+try:
+    from nature_inspire.problem import algo_config
+except ImportError:
+    algo_config = {}
 
 # --- CONFIG ---
 UNWEIGHTED_DIR = "tests_shortest_unweighted"
@@ -170,8 +175,12 @@ def run_aco_wrapper(adjw: List[List[Tuple[int, int]]], s: int, t: int) -> Any:
         q=100.0
     )
 
+    config = algo_config.get("ACO", {})
+    n_ants = config.get("n_ants", 20)
+    max_iter = config.get("max_iter", 20)
+
     # Chạy thuật toán
-    path, cost = aco_solver.run(str(s), str(t), n_ants=20, max_iter=20)
+    path, cost = aco_solver.run(str(s), str(t), n_ants=n_ants, max_iter=max_iter)
 
     if path is None:
         return None
@@ -188,198 +197,209 @@ def get_weighted_algorithms():
     return {"UCS": UCS, "GBFS": GBFS, "ACO": run_aco_wrapper}
 
 
-# --- BENCHMARK FUNCTIONS ---
-def bench_unweighted_series(name: str, algo: UnweightedAlgo, tests_dir: str, num_cases: int) -> AlgoSeries:
-    recs: List[Record] = []
-    for i in range(1, num_cases + 1):
-        in_path = os.path.join(tests_dir, f"{i}.txt")
-        ans_path = os.path.join(tests_dir, f"{i}.ans")
+# --- BENCHMARK CLASS ---
+class ShortestPathBenchmark:
+    def __init__(self, unweighted_dir: str = UNWEIGHTED_DIR, weighted_dir: str = WEIGHTED_DIR, plots_dir: str = PLOTS_DIR, num_cases: int = NUM_CASES, save_plots: bool = SAVE_PLOTS, dpi: int = DPI):
+        self.unweighted_dir = unweighted_dir
+        self.weighted_dir = weighted_dir
+        self.plots_dir = plots_dir
+        self.num_cases = num_cases
+        self.save_plots = save_plots# Only true if also MATPLOTLIB_AVAILABLE globally
+        if not MATPLOTLIB_AVAILABLE:
+            self.save_plots = False
+        self.dpi = dpi
 
-        if not os.path.exists(in_path): continue
+    def bench_unweighted_series(self, name: str, algo: UnweightedAlgo) -> AlgoSeries:
+        recs: List[Record] = []
+        for i in range(1, self.num_cases + 1):
+            in_path = os.path.join(self.unweighted_dir, f"{i}.txt")
+            ans_path = os.path.join(self.unweighted_dir, f"{i}.ans")
 
-        tracemalloc.start()
-        t0 = time.perf_counter()
+            if not os.path.exists(in_path): continue
 
-        n, s, t, edges = load_unweighted_case(in_path)
-        expected = load_ans(ans_path)
-        exp_len = None if expected is None else expected[0]
-        adj = build_adj_unweighted(n, edges)
-
-        got_path = algo(adj, s, t)
-
-        dt = time.perf_counter() - t0
-        _, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
-
-        exp_impossible = (expected is None)
-        got_impossible = (got_path is None)
-
-        got_len: Optional[int] = None
-        if got_path is not None and is_valid_path_unweighted(adj, got_path, s, t):
-            got_len = len(got_path)
-        else:
-            if got_path is not None: got_impossible = True
-
-        err = percent_error(exp_len, got_len, exp_impossible, got_impossible)
-        recs.append(Record(i, dt, peak / (1024 * 1024), err))
-
-    return AlgoSeries(name=name, algo_type="unweighted", records=recs)
-
-
-def bench_weighted_series(name: str, algo: WeightedAlgo, tests_dir: str, num_cases: int) -> AlgoSeries:
-    recs: List[Record] = []
-
-    for i in range(1, num_cases + 1):
-        in_path = os.path.join(tests_dir, f"{i}.txt")
-        ans_path = os.path.join(tests_dir, f"{i}.ans")
-
-        if not os.path.exists(in_path):
-            print(f"File not found: {in_path}")
-            continue
-
-        # Default values for skipped/failed tests
-        dt = None
-        peak_mb = None
-        err = None
-
-        skip_this_test = False
-
-        try:
             tracemalloc.start()
             t0 = time.perf_counter()
 
-            # IO + Parse
-            n, s, t, edges = load_weighted_case(in_path)
+            n, s, t, edges = load_unweighted_case(in_path)
             expected = load_ans(ans_path)
-            exp_cost = None if expected is None else expected[0]
-            adjw = build_adj_weighted(n, edges)
+            exp_len = None if expected is None else expected[0]
+            adj = build_adj_unweighted(n, edges)
 
-            # Build & Run Algo
-            got = algo(adjw, s, t)  # Có thể raise ValueError tại đây
+            got_path = algo(adj, s, t)
 
-            # Stop Timer
             dt = time.perf_counter() - t0
             _, peak = tracemalloc.get_traced_memory()
-            peak_mb = peak / (1024 * 1024)
             tracemalloc.stop()
 
-            # --- Validation Logic (Chỉ chạy khi không lỗi) ---
             exp_impossible = (expected is None)
-            got_impossible = (got is None)
-            got_cost: Optional[int] = None
-            got_path: Optional[List[int]] = None
+            got_impossible = (got_path is None)
 
-            if got is None:
-                pass
-            elif isinstance(got, tuple) and len(got) == 2:
-                got_cost = int(got[0])
-                got_path = got[1]
-            elif isinstance(got, list):
-                got_path = got
-                pc = path_cost_weighted(adjw, got_path)
-                got_cost = int(pc) if pc is not None else None
-
-            if got_path is not None and got_cost is not None:
-                if not is_valid_path_weighted(adjw, got_path, s, t):
-                    got_impossible = True
-                    got_cost = None
+            got_len: Optional[int] = None
+            if got_path is not None and is_valid_path_unweighted(adj, got_path, s, t):
+                got_len = len(got_path)
             else:
-                if got is not None: got_impossible = True
+                if got_path is not None: got_impossible = True
 
-            err = percent_error(exp_cost, got_cost, exp_impossible, got_impossible)
+            err = percent_error(exp_len, got_len, exp_impossible, got_impossible)
+            recs.append(Record(i, dt, peak / (1024 * 1024), err))
 
-        except ValueError as e:
-            # Bắt lỗi "Graph quá lớn" từ ACO
-            tracemalloc.stop()  # Dừng trace nếu đang chạy
-            print(f"  [SKIP] Test {i} ({name}): {e}")
-            skip_this_test = True
-
-        except Exception as e:
-            tracemalloc.stop()
-            print(f"  [ERROR] Test {i} ({name}): {e}")
-            skip_this_test = True
-
-        # Nếu skip_this_test = True, thì dt, peak_mb, err vẫn là None
-        recs.append(Record(i, dt, peak_mb, err))
-
-    return AlgoSeries(name=name, algo_type="weighted", records=recs)
+        return AlgoSeries(name=name, algo_type="unweighted", records=recs)
 
 
-# --- PLOTTING ---
-def ensure_plots_dir():
-    if SAVE_PLOTS:
-        os.makedirs(PLOTS_DIR, exist_ok=True)
+    def bench_weighted_series(self, name: str, algo: WeightedAlgo) -> AlgoSeries:
+        recs: List[Record] = []
+
+        for i in range(1, self.num_cases + 1):
+            in_path = os.path.join(self.weighted_dir, f"{i}.txt")
+            ans_path = os.path.join(self.weighted_dir, f"{i}.ans")
+
+            if not os.path.exists(in_path):
+                print(f"File not found: {in_path}")
+                continue
+
+            # Default values for skipped/failed tests
+            dt = None
+            peak_mb = None
+            err = None
+
+            skip_this_test = False
+
+            try:
+                tracemalloc.start()
+                t0 = time.perf_counter()
+
+                # IO + Parse
+                n, s, t, edges = load_weighted_case(in_path)
+                expected = load_ans(ans_path)
+                exp_cost = None if expected is None else expected[0]
+                adjw = build_adj_weighted(n, edges)
+
+                # Build & Run Algo
+                got = algo(adjw, s, t)  # Có thể raise ValueError tại đây
+
+                # Stop Timer
+                dt = time.perf_counter() - t0
+                _, peak = tracemalloc.get_traced_memory()
+                peak_mb = peak / (1024 * 1024)
+                tracemalloc.stop()
+
+                # --- Validation Logic (Chỉ chạy khi không lỗi) ---
+                exp_impossible = (expected is None)
+                got_impossible = (got is None)
+                got_cost: Optional[int] = None
+                got_path: Optional[List[int]] = None
+
+                if got is None:
+                    pass
+                elif isinstance(got, tuple) and len(got) == 2:
+                    got_cost = int(got[0])
+                    got_path = got[1]
+                elif isinstance(got, list):
+                    got_path = got
+                    pc = path_cost_weighted(adjw, got_path)
+                    got_cost = int(pc) if pc is not None else None
+
+                if got_path is not None and got_cost is not None:
+                    if not is_valid_path_weighted(adjw, got_path, s, t):
+                        got_impossible = True
+                        got_cost = None
+                else:
+                    if got is not None: got_impossible = True
+
+                err = percent_error(exp_cost, got_cost, exp_impossible, got_impossible)
+
+            except ValueError as e:
+                # Bắt lỗi "Graph quá lớn" từ ACO
+                tracemalloc.stop()  # Dừng trace nếu đang chạy
+                print(f"  [SKIP] Test {i} ({name}): {e}")
+                skip_this_test = True
+
+            except Exception as e:
+                tracemalloc.stop()
+                print(f"  [ERROR] Test {i} ({name}): {e}")
+                skip_this_test = True
+
+            # Nếu skip_this_test = True, thì dt, peak_mb, err vẫn là None
+            recs.append(Record(i, dt, peak_mb, err))
+
+        return AlgoSeries(name=name, algo_type="weighted", records=recs)
+
+    # --- PLOTTING ---
+    def ensure_plots_dir(self):
+        if self.save_plots:
+            os.makedirs(self.plots_dir, exist_ok=True)
+
+    def savefig(self, filename: str):
+        if self.save_plots:
+            plt.savefig(os.path.join(self.plots_dir, filename), dpi=self.dpi, bbox_inches="tight")
+
+    def plot_time_memory_per_test(self, series_list: List[AlgoSeries]):
+        if not MATPLOTLIB_AVAILABLE: return
+        xs = list(range(1, self.num_cases + 1))
+        fig, (ax_time, ax_mem) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+
+        for s in series_list:
+            # Matplotlib tự động bỏ qua các giá trị None (làm đứt nét vẽ)
+            times = [r.time_sec for r in s.records]
+            mems = [r.peak_mem_mb for r in s.records]
+
+            ax_time.plot(xs, times, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
+            ax_mem.plot(xs, mems, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
+
+        ax_time.set_title("Test vs Time (s)")
+        ax_time.legend()
+        ax_mem.set_title("Test vs Peak Memory (MB)")
+        ax_mem.legend()
+        ax_mem.set_xticks(xs)
+        fig.tight_layout()
+        self.savefig("pertest_time_memory.png")
+        plt.close()
+
+    def plot_error_per_test(self, series_list: List[AlgoSeries]):
+        if not MATPLOTLIB_AVAILABLE: return
+        xs = list(range(1, self.num_cases + 1))
+        plt.figure(figsize=(12, 5))
+        for s in series_list:
+            # Bỏ qua DFS nếu muốn vì nó không tối ưu
+            if s.name == "DFS": continue
+
+            errs = [r.pct_error for r in s.records]
+            plt.plot(xs, errs, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
+
+        plt.title("Test vs % Error")
+        plt.xlabel("Test ID")
+        plt.ylabel("% Error")
+        plt.xticks(xs)
+        plt.legend()
+        plt.tight_layout()
+        self.savefig("pertest_percent_error.png")
+        plt.close()
+
+    def run(self):
+        self.ensure_plots_dir()
+        all_series: List[AlgoSeries] = []
+
+        # 1. Unweighted
+        for name, algo in get_unweighted_algorithms().items():
+            print(f"Benchmark UNWEIGHTED {name} ...")
+            all_series.append(self.bench_unweighted_series(name, algo))
+
+        # 2. Weighted
+        for name, algo in get_weighted_algorithms().items():
+            print(f"Benchmark WEIGHTED {name} ...")
+            all_series.append(self.bench_weighted_series(name, algo))
+
+        # 3. Plots
+        self.plot_time_memory_per_test(all_series)
+        self.plot_error_per_test(all_series)
+
+        if self.save_plots:
+            print(f"Saved images to {self.plots_dir}/")
 
 
-def savefig(filename: str):
-    if SAVE_PLOTS:
-        plt.savefig(os.path.join(PLOTS_DIR, filename), dpi=DPI, bbox_inches="tight")
-
-
-def plot_time_memory_per_test(series_list: List[AlgoSeries], num_cases: int):
-    if not MATPLOTLIB_AVAILABLE: return
-    xs = list(range(1, num_cases + 1))
-    fig, (ax_time, ax_mem) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
-
-    for s in series_list:
-        # Matplotlib tự động bỏ qua các giá trị None (làm đứt nét vẽ)
-        times = [r.time_sec for r in s.records]
-        mems = [r.peak_mem_mb for r in s.records]
-
-        ax_time.plot(xs, times, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
-        ax_mem.plot(xs, mems, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
-
-    ax_time.set_title("Test vs Time (s)")
-    ax_time.legend()
-    ax_mem.set_title("Test vs Peak Memory (MB)")
-    ax_mem.legend()
-    ax_mem.set_xticks(xs)
-    fig.tight_layout()
-    savefig("pertest_time_memory.png")
-
-
-def plot_error_per_test(series_list: List[AlgoSeries], num_cases: int):
-    if not MATPLOTLIB_AVAILABLE: return
-    xs = list(range(1, num_cases + 1))
-    plt.figure(figsize=(12, 5))
-    for s in series_list:
-        # Bỏ qua DFS nếu muốn vì nó không tối ưu
-        if s.name == "DFS": continue
-
-        errs = [r.pct_error for r in s.records]
-        plt.plot(xs, errs, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
-
-    plt.title("Test vs % Error")
-    plt.xlabel("Test ID")
-    plt.ylabel("% Error")
-    plt.xticks(xs)
-    plt.legend()
-    plt.tight_layout()
-    savefig("pertest_percent_error.png")
-
-
-# --- MAIN ---
 def main():
-    ensure_plots_dir()
-    all_series: List[AlgoSeries] = []
-
-    # 1. Unweighted
-    for name, algo in get_unweighted_algorithms().items():
-        print(f"Benchmark UNWEIGHTED {name} ...")
-        all_series.append(bench_unweighted_series(name, algo, UNWEIGHTED_DIR, NUM_CASES))
-
-    # 2. Weighted
-    for name, algo in get_weighted_algorithms().items():
-        print(f"Benchmark WEIGHTED {name} ...")
-        all_series.append(bench_weighted_series(name, algo, WEIGHTED_DIR, NUM_CASES))
-
-    # 3. Plots
-    plot_time_memory_per_test(all_series, NUM_CASES)
-    plot_error_per_test(all_series, NUM_CASES)
-
-    if SAVE_PLOTS:
-        print(f"Saved images to {PLOTS_DIR}/")
-
+    benchmark = ShortestPathBenchmark()
+    benchmark.run()
 
 if __name__ == "__main__":
     main()

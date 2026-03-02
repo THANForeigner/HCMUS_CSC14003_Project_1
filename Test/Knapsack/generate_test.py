@@ -49,23 +49,23 @@ def gen_knapsack_data(n: int, seed: int, max_weight=50, max_value=100):
 
 def build_plan_kp():
     plan = []
-    plan.append({"n": 5})
-    plan.append({"n": 10})
-    plan.append({"n": 15})
-    plan.append({"n": 20})
-    plan.append({"n": 20})
+    plan.append({"n": 250})
+    plan.append({"n": 300})
+    plan.append({"n": 350})
+    plan.append({"n": 400})
+    plan.append({"n": 450})
+    plan.append({"n": 500})
 
-    plan.append({"n": 30})
-    plan.append({"n": 40})
-    plan.append({"n": 50})
-    plan.append({"n": 60})
-    plan.append({"n": 80})
+    plan.append({"n": 600})
+    plan.append({"n": 700})
+    plan.append({"n": 800})
+    plan.append({"n": 900})
+    plan.append({"n": 1000})
 
-    plan.append({"n": 100})
-    plan.append({"n": 120})
-    plan.append({"n": 150})
-    plan.append({"n": 200})
-    plan.append({"n": 200})
+    plan.append({"n": 1200})
+    plan.append({"n": 1500})
+    plan.append({"n": 1800})
+    plan.append({"n": 2000})
 
     return plan
 

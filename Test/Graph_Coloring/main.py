@@ -5,23 +5,19 @@ import time
 import tracemalloc
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Any
-
-# Imports from local modules
-try:
-    from classical.uninformed.dfsColoring import DFSColoring
-    from nature_inspire.biology_based.ACOColoring import ACOColoring
-except ImportError:
-    # Handle running from root directory
-    sys.path.append(os.path.dirname(__file__))
-    from classical.uninformed.dfsColoring import DFSColoring
-    from nature_inspire.biology_based.ACOColoring import ACOColoring
-
+from classical.uninformed.depth_first_search_graph_coloring import DFS_GraphColoring
+from nature_inspire.biology_based.ant_colony_optimization.ant_colony_optimization_graph_coloring import ACO_GraphColoring
 try:
     import matplotlib.pyplot as plt
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
     print("Warning: matplotlib not found. Plotting disabled.")
+
+try:
+    from nature_inspire.problem import algo_config
+except ImportError:
+    algo_config = {}
 
 # --- CONFIG ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -105,7 +101,7 @@ def run_dfs_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int,
     adj = build_adj_list(n, edges)
     # Check max degree for upper bound if needed, but we start low.
     for k in range(1, n + 1):
-        solver = DFSColoring(adj, n, k)
+        solver = DFS_GraphColoring(adj, n, k)
         res = solver.solve()
         if res:
             # res is colors array (size n+1)
@@ -115,120 +111,135 @@ def run_dfs_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int,
 def run_aco_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, List[int]]]:
     adj_dict = build_adj_dict(n, edges)
     # Params tuned for speed vs quality
-    solver = ACOColoring(adj_dict, n, max_iter=30, n_ants=10)
+    config = algo_config.get("ACO", {})
+    n_ants = config.get("n_ants", 10)
+    max_iter = config.get("max_iter", 30)
+
+    solver = ACO_GraphColoring(adj_dict, n, max_iter=max_iter, n_ants=n_ants)
     try:
-        num_colors, colors_list = solver.solve()
+        num_colors, colors_list = solver.run()
         return num_colors, colors_list
     except Exception as e:
         print(f"ACO Error: {e}")
         return None
 
-# --- BENCHMARK ---
-def bench_series(name: str, runner: Callable[[int, List[Tuple[int, int]]], Any], tests_dir: str, num_cases: int) -> AlgoSeries:
-    recs: List[Record] = []
-    for i in range(1, num_cases + 1):
-        in_path = os.path.join(tests_dir, f"{i}.txt")
-        ans_path = os.path.join(tests_dir, f"{i}.ans")
-        
-        if not os.path.exists(in_path):
-            continue
-        print(f"  Running Test {i} ({name})...", end="", flush=True)
-        
-        n, edges = load_case(in_path)
-        expected_k = load_ans(ans_path)
-        tracemalloc.start()
-        start_time = time.perf_counter()
-        result = runner(n, edges)
-        dt = time.perf_counter() - start_time
-        _, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
-        peak_mb = peak / (1024 * 1024)
-        got_k = None
-        pct_error = 0.0
-        
-        if result:
-            got_k, colors = result
-            adj = build_adj_list(n, edges)
-            if len(colors) == n:
-                colors_check = [0] + colors
-            else:
-                colors_check = colors
-            if not is_valid_coloring(adj, colors_check, n):
-                print(f" -> INVALID COLORING!", end="")
-                got_k = None # Mark as failed
-            else:
-                if expected_k:
-                    pct_error = (got_k - expected_k) / expected_k * 100.0
-                else:
-                    pct_error = 0.0
-        else:
-            print(f" -> NO SOLUTION!", end="")
-            pct_error = 100.0
-            
-        print(f" Done. Time: {dt:.4f}s, K: {got_k} (Exp: {expected_k})")
-        
-        recs.append(Record(i, dt, peak_mb, pct_error, got_k))
-        
-    return AlgoSeries(name, recs)
+# --- BENCHMARK CLASS ---
+class GraphColoringBenchmark:
+    def __init__(self, tests_dir: str = TESTS_DIR, plot_dir: str = PLOT_DIR, num_cases: int = NUM_CASES, save_plots: bool = SAVE_PLOTS, dpi: int = DPI):
+        self.tests_dir = tests_dir
+        self.plot_dir = plot_dir
+        self.num_cases = num_cases
+        self.save_plots = save_plots
+        self.dpi = dpi
 
-# --- PLOTTING ---
-def plot_results(series_list: List[AlgoSeries]):
-    if not MATPLOTLIB_AVAILABLE or not SAVE_PLOTS:
-        return
-        
-    os.makedirs(PLOT_DIR, exist_ok=True)
-    # 1. Time & Memory
-    fig, (ax_time, ax_mem) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-    for s in series_list:
-        ids = [r.test_id for r in s.records]
-        times = [r.time_sec for r in s.records]
-        mems = [r.peak_mem_mb for r in s.records]
-        ax_time.plot(ids, times, marker="o", label=s.name)
-        ax_mem.plot(ids, mems, marker="x", label=s.name)
-        
-    ax_time.set_title("Execution Time (s)")
-    ax_time.set_ylabel("Seconds")
-    ax_time.legend()
-    
-    ax_mem.set_title("Peak Memory (MB)")
-    ax_mem.set_ylabel("MB")
-    ax_mem.legend()
-    ax_mem.set_xlabel("Test Case ID")
-    
-    fig.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "gc_time_memory.png"))
-    plt.close()
-    
-    # 2. Results Quality (Num Colors)
-    plt.figure(figsize=(10, 5))
-    if series_list:
+    def bench_series(self, name: str, runner: Callable[[int, List[Tuple[int, int]]], Any]) -> AlgoSeries:
+        recs: List[Record] = []
+        for i in range(1, self.num_cases + 1):
+            in_path = os.path.join(self.tests_dir, f"{i}.txt")
+            ans_path = os.path.join(self.tests_dir, f"{i}.ans")
+            
+            if not os.path.exists(in_path):
+                continue
+            print(f"  Running Test {i} ({name})...", end="", flush=True)
+            
+            n, edges = load_case(in_path)
+            expected_k = load_ans(ans_path)
+            tracemalloc.start()
+            start_time = time.perf_counter()
+            result = runner(n, edges)
+            dt = time.perf_counter() - start_time
+            _, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+            peak_mb = peak / (1024 * 1024)
+            got_k = None
+            pct_error = 0.0
+            
+            if result:
+                got_k, colors = result
+                adj = build_adj_list(n, edges)
+                if len(colors) == n:
+                    colors_check = [0] + colors
+                else:
+                    colors_check = colors
+                if not is_valid_coloring(adj, colors_check, n):
+                    print(f" -> INVALID COLORING!", end="")
+                    got_k = None # Mark as failed
+                else:
+                    if expected_k:
+                        pct_error = (got_k - expected_k) / expected_k * 100.0
+                    else:
+                        pct_error = 0.0
+            else:
+                print(f" -> NO SOLUTION!", end="")
+                pct_error = 100.0
+                
+            print(f" Done. Time: {dt:.4f}s, K: {got_k} (Exp: {expected_k})")
+            
+            recs.append(Record(i, dt, peak_mb, pct_error, got_k))
+            
+        return AlgoSeries(name, recs)
+
+    def plot_results(self, series_list: List[AlgoSeries]):
+        if not MATPLOTLIB_AVAILABLE or not self.save_plots:
+            return
+            
+        os.makedirs(self.plot_dir, exist_ok=True)
+        # 1. Time & Memory
+        fig, (ax_time, ax_mem) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
         for s in series_list:
             ids = [r.test_id for r in s.records]
-            errs = [r.pct_error for r in s.records]
-            plt.plot(ids, errs, marker="o", label=s.name)
+            times = [r.time_sec for r in s.records]
+            mems = [r.peak_mem_mb for r in s.records]
+            ax_time.plot(ids, times, marker="o", label=s.name)
+            ax_mem.plot(ids, mems, marker="x", label=s.name)
             
-    plt.title("Error % relative to Optimal/Expected K")
-    plt.ylabel("% Error (Lower is Better)")
-    plt.xlabel("Test Case ID")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "gc_quality_error.png"))
-    plt.close()
+        ax_time.set_title("Execution Time (s)")
+        ax_time.set_ylabel("Seconds")
+        ax_time.legend()
+        
+        ax_mem.set_title("Peak Memory (MB)")
+        ax_mem.set_ylabel("MB")
+        ax_mem.legend()
+        ax_mem.set_xlabel("Test Case ID")
+        
+        fig.tight_layout()
+        plt.savefig(os.path.join(self.plot_dir, "gc_time_memory.png"), dpi=self.dpi)
+        plt.close()
+        
+        # 2. Results Quality (Num Colors)
+        plt.figure(figsize=(10, 5))
+        if series_list:
+            for s in series_list:
+                ids = [r.test_id for r in s.records]
+                errs = [r.pct_error for r in s.records]
+                plt.plot(ids, errs, marker="o", label=s.name)
+                
+        plt.title("Error % relative to Optimal/Expected K")
+        plt.ylabel("% Error (Lower is Better)")
+        plt.xlabel("Test Case ID")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.plot_dir, "gc_quality_error.png"), dpi=self.dpi)
+        plt.close()
+
+    def run(self):
+        print(f"Starting Graph Coloring Benchmark (Cases 1-{self.num_cases})...")
+        
+        # Run DFS
+        print("\n--- Benchmarking DFS ---")
+        dfs_series = self.bench_series("DFS", run_dfs_wrapper)
+        
+        # Run ACO
+        print("\n--- Benchmarking ACO ---")
+        aco_series = self.bench_series("ACO", run_aco_wrapper)
+        
+        # Plot
+        self.plot_results([dfs_series, aco_series])
+        print("\nBenchmark Completed.")
 
 def main():
-    print(f"Starting Graph Coloring Benchmark (Cases 1-{NUM_CASES})...")
-    
-    # Run DFS
-    print("\n--- Benchmarking DFS ---")
-    dfs_series = bench_series("DFS", run_dfs_wrapper, TESTS_DIR, NUM_CASES)
-    
-    # Run ACO
-    print("\n--- Benchmarking ACO ---")
-    aco_series = bench_series("ACO", run_aco_wrapper, TESTS_DIR, NUM_CASES)
-    
-    # Plot
-    plot_results([dfs_series, aco_series])
-    print("\nBenchmark Completed.")
+    benchmark = GraphColoringBenchmark()
+    benchmark.run()
 
 if __name__ == "__main__":
     main()

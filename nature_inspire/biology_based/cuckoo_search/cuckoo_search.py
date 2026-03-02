@@ -1,5 +1,5 @@
 import numpy as np
-from nature_inspire.biology_based import problem
+from nature_inspire import problem
 
 
 def levy_flight_butakova(alpha, dim):
@@ -28,7 +28,7 @@ def levy_flight_butakova(alpha, dim):
 
 
 class CS:
-    def __init__(self, func_name, pop_size=25, dim=10, max_iter=100):
+    def __init__(self, func_name, pop_size=30, dim=10, max_iter=50, pa=0.25, beta=1.5):
         # Load bài toán
         p = problem.get_problem(func_name)
         self.func = p["func"]
@@ -40,8 +40,8 @@ class CS:
         self.history = []
 
         # Tham số CS
-        self.pa = 0.25  # Xác suất bị phát hiện
-        self.beta = 1.5  # Tham số Levy
+        self.pa = pa  # Xác suất bị phát hiện
+        self.beta = beta  # Tham số Levy
 
     def run(self):
         # 1. Khởi tạo tổ chim

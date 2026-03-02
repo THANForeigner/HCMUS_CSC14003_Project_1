@@ -17,7 +17,7 @@ from typing import Callable, List, Optional, Tuple, Any
 from classical.informed.A_star_TSP import AStarTSP
 from classical.local.hill_climbing_tsp import HillClimbingTSP
 from nature_inspire.biology_based.ant_colony_optimization.ant_colony_optimization_tsp import ACO_TSP
-from nature_inspire.evolution_based.genetic_algorithm.genetic_algorithm_tsp import GeneticAlgorithmTSP
+from nature_inspire.evolution_based.genetic_algorithm.genetic_algorithm_tsp import GA_TSP
  
 
 try:
@@ -26,6 +26,11 @@ try:
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
     print("Warning: matplotlib not found. Plotting disabled.")
+
+try:
+    from nature_inspire.problem import algo_config
+except ImportError:
+    algo_config = {}
 
 # --- CONFIG ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -102,203 +107,233 @@ def calculate_path_cost(path: List[int], matrix: List[List[float]]) -> float:
 
 # --- ALGO WRAPPERS ---
 # Return type: (cost, path)
-
 def run_astar_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
     n = len(points)
-    if n > 50: # A* is too slow for N > 50
+    if n > 20:
+        print(f" [A* Skipped: N={n} too large for Exact Solver]")
         return None
-        
+
     matrix = calculate_distance_matrix(points)
     solver = AStarTSP(matrix)
     try:
-        cost, path = solver.solve()
+        cost, path = solver.run()
         return cost, path
     except Exception as e:
         print(f"A* Error: {e}")
         return None
 
-def run_aco_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
-    matrix = calculate_distance_matrix(points)
-    # n_ants=20, max_iter=50 for reasonable speed
-    solver = ACO_TSP(matrix, n_ants=20, max_iter=50)
-    try:
-        cost, path = solver.solve()
-        return cost, path
-    except Exception as e:
-        print(f"ACO Error: {e}")
-        return None
-
 def run_ga_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
     n = len(points)
-    if n > 100:
+    if n > 200:
+        print(f" [GA Skipped: N={n} exceeds benchmark limit]")
         return None
+
     matrix = calculate_distance_matrix(points)
-    # Correct instantiation based on existing code logic
-    solver = GeneticAlgorithmTSP(matrix, pop_size=50, generations=100, mutation_rate=0.1)
+    config = algo_config.get("GA", {})
+    pop_size = config.get("population_size", 100 if n > 50 else 50)
+    generations = config.get("max_iter", 200 if n > 50 else 100)
+
+    solver = GA_TSP(matrix, pop_size=pop_size, generations=generations)
     try:
-        # GeneticAlgorithm.run() returns (best_individual, history)
-        # best_individual is (path, fitness)
         res, history = solver.run()
         path, fitness = res
         cost = calculate_path_cost(path, matrix)
         return cost, path
     except Exception as e:
         print(f"GA Error: {e}")
-        import traceback
-        traceback.print_exc()
         return None
 
-def run_hill_climbing_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
+
+def run_aco_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
+    n = len(points)
+    if n > 250:
+        print(f" [ACO Skipped: N={n} too large for quick benchmark]")
+        return None
+
     matrix = calculate_distance_matrix(points)
-    solver = HillClimbingTSP(matrix, max_iterations=500, restarts=20)
+    config = algo_config.get("ACO", {})
+    n_ants = config.get("n_ants", 20 if n < 100 else 30)
+    max_iter = config.get("max_iter", 50 if n < 100 else 100)
+
+    solver = ACO_TSP(matrix, n_ants=n_ants, max_iter=max_iter)
+    try:
+        cost, path = solver.run()
+        return cost, path
+    except Exception as e:
+        print(f"ACO Error: {e}")
+        return None
+
+
+def run_hill_climbing_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
+    n = len(points)
+    if n > 300:
+        return None
+
+    matrix = calculate_distance_matrix(points)
+    config = algo_config.get("HC", {})
+    restarts = 20 if n < 50 else 5
+
+    solver = HillClimbingTSP(matrix, max_iterations=500, restarts=restarts)
     try:
         cost, path = solver.solve()
         return cost, path
     except Exception as e:
-        print(f"Hill Climbing Error: {e}")
         return None
 
-# --- BENCHMARK ---
-def bench_series(name: str, runner: Callable[[List[Tuple[float, float]]], Any], tests_dir: str, num_cases: int) -> AlgoSeries:
-    recs: List[Record] = []
-    
-    # Get all .txt files in tests_dir and sort them numerically
-    try:
-        files = [f for f in os.listdir(tests_dir) if f.endswith('.txt')]
-        # Extract numbers to sort
-        files_map = {}
-        for f in files:
-            try:
-                num = int(os.path.splitext(f)[0])
-                files_map[num] = f
-            except ValueError:
-                pass
-        
-        sorted_nums = sorted(files_map.keys())
-        # Use provided NUM_CASES to slice if needed, or just all
-        # We want exactly the cases 1..NUM_CASES or whatever is available
-        test_ids = [n for n in sorted_nums if n <= num_cases]
-    except FileNotFoundError:
-        print(f"Tests directory not found: {tests_dir}")
-        return AlgoSeries(name, [])
+# --- BENCHMARK CLASS ---
+class TSPBenchmark:
+    def __init__(self, tests_dir: str = TESTS_DIR, plot_dir: str = PLOT_DIR, num_cases: int = NUM_CASES, save_plots: bool = SAVE_PLOTS, dpi: int = DPI):
+        self.tests_dir = tests_dir
+        self.plot_dir = plot_dir
+        self.num_cases = num_cases
+        self.save_plots = save_plots
+        if not MATPLOTLIB_AVAILABLE:
+            self.save_plots = False
+        self.dpi = dpi
 
-    for i in test_ids:
-        in_path = os.path.join(tests_dir, f"{i}.txt")
-        ans_path = os.path.join(tests_dir, f"{i}.ans")
+    def bench_series(self, name: str, runner: Callable[[List[Tuple[float, float]]], Any]) -> AlgoSeries:
+        recs: List[Record] = []
         
-        print(f"  Running Test {i} ({name})...", end="", flush=True)
-        
-        points = load_case(in_path)
-        if not points:
-             print(" -> Empty/Invalid input")
-             continue
-             
-        expected_cost = load_ans(ans_path)
-        
-        tracemalloc.start()
-        start_time = time.perf_counter()
-        
-        result = runner(points)
-        
-        dt = time.perf_counter() - start_time
-        _, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
-        peak_mb = peak / (1024 * 1024)
-        
-        got_cost = None
-        pct_error = 0.0
-        
-        if result:
-            got_cost, path = result
-            if got_cost == float('inf') or got_cost is None:
-                 print(f" -> NO SOLUTION!", end="")
-                 got_cost = None
+        # Get all .txt files in tests_dir and sort them numerically
+        try:
+            files = [f for f in os.listdir(self.tests_dir) if f.endswith('.txt')]
+            # Extract numbers to sort
+            files_map = {}
+            for f in files:
+                try:
+                    num = int(os.path.splitext(f)[0])
+                    files_map[num] = f
+                except ValueError:
+                    pass
+            
+            sorted_nums = sorted(files_map.keys())
+            # Use provided NUM_CASES to slice if needed, or just all
+            # We want exactly the cases 1..NUM_CASES or whatever is available
+            test_ids = [n for n in sorted_nums if n <= self.num_cases]
+        except FileNotFoundError:
+            print(f"Tests directory not found: {self.tests_dir}")
+            return AlgoSeries(name, [])
+
+        for i in test_ids:
+            in_path = os.path.join(self.tests_dir, f"{i}.txt")
+            ans_path = os.path.join(self.tests_dir, f"{i}.ans")
+            
+            print(f"  Running Test {i} ({name})...", end="", flush=True)
+            
+            points = load_case(in_path)
+            if not points:
+                 print(" -> Empty/Invalid input")
+                 continue
+                 
+            expected_cost = load_ans(ans_path)
+            
+            tracemalloc.start()
+            start_time = time.perf_counter()
+            
+            result = runner(points)
+            
+            dt = time.perf_counter() - start_time
+            _, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+            peak_mb = peak / (1024 * 1024)
+            
+            got_cost = None
+            pct_error = 0.0
+            
+            if result:
+                got_cost, path = result
+                if got_cost == float('inf') or got_cost is None:
+                     print(f" -> NO SOLUTION!", end="")
+                     got_cost = None
+                else:
+                     if expected_cost:
+                         pct_error = (got_cost - expected_cost) / expected_cost * 100.0
+                     else:
+                         pct_error = 0.0
+                     print(f" Done. Time: {dt:.4f}s, Cost: {got_cost:.2f} (Exp: {expected_cost})")
             else:
-                 if expected_cost:
-                     pct_error = (got_cost - expected_cost) / expected_cost * 100.0
-                 else:
-                     pct_error = 0.0
-                 print(f" Done. Time: {dt:.4f}s, Cost: {got_cost:.2f} (Exp: {expected_cost})")
-        else:
-            print(f" -> SKIPPED/FAILED!", end="")
-            print(f" Done. Time: {dt:.4f}s")
+                print(f" -> SKIPPED/FAILED!", end="")
+                print(f" Done. Time: {dt:.4f}s")
+            
+            recs.append(Record(i, dt, peak_mb, got_cost, expected_cost, pct_error))
+            
+        return AlgoSeries(name, recs)
+
+    def plot_results(self, series_list: List[AlgoSeries]):
+        if not MATPLOTLIB_AVAILABLE or not self.save_plots:
+            return
+            
+        os.makedirs(self.plot_dir, exist_ok=True)
         
-        recs.append(Record(i, dt, peak_mb, got_cost, expected_cost, pct_error))
+        # Filter out empty series
+        series_list = [s for s in series_list if s.records]
+        if not series_list: return
+
+        # 1. Execution Time
+        plt.figure(figsize=(10, 6))
+        for s in series_list:
+            ids = [r.test_id for r in s.records if r.time_sec is not None]
+            times = [r.time_sec for r in s.records if r.time_sec is not None]
+            plt.plot(ids, times, marker="o", label=s.name)
         
-    return AlgoSeries(name, recs)
+        plt.title("TSP Execution Time (s)")
+        plt.xlabel("Test Case ID")
+        plt.ylabel("Time (s)")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(os.path.join(self.plot_dir, "tsp_time.png"), dpi=self.dpi)
+        plt.close()
 
-# --- PLOTTING ---
-def plot_results(series_list: List[AlgoSeries]):
-    if not MATPLOTLIB_AVAILABLE or not SAVE_PLOTS:
-        return
+        # 2. Cost Comparison
+        plt.figure(figsize=(10, 6))
+        for s in series_list:
+            ids = [r.test_id for r in s.records if r.cost is not None]
+            costs = [r.cost for r in s.records if r.cost is not None]
+            plt.plot(ids, costs, marker="x", label=s.name)
         
-    os.makedirs(PLOT_DIR, exist_ok=True)
-    
-    # Filter out empty series
-    series_list = [s for s in series_list if s.records]
-    if not series_list: return
+        # Also plot expected if available (from first series that has it)
+        if series_list:
+            ref = series_list[0]
+            ids = [r.test_id for r in ref.records if r.expected_cost is not None]
+            exp = [r.expected_cost for r in ref.records if r.expected_cost is not None]
+            if ids:
+                plt.plot(ids, exp, "k--", label="Optimal (DP)")
 
-    # 1. Execution Time
-    plt.figure(figsize=(10, 6))
-    for s in series_list:
-        ids = [r.test_id for r in s.records if r.time_sec is not None]
-        times = [r.time_sec for r in s.records if r.time_sec is not None]
-        plt.plot(ids, times, marker="o", label=s.name)
-    
-    plt.title("TSP Execution Time (s)")
-    plt.xlabel("Test Case ID")
-    plt.ylabel("Time (s)")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(os.path.join(PLOT_DIR, "tsp_time.png"), dpi=DPI)
-    plt.close()
+        plt.title("TSP Path Cost")
+        plt.xlabel("Test Case ID")
+        plt.ylabel("Cost")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(os.path.join(self.plot_dir, "tsp_cost.png"), dpi=self.dpi)
+        plt.close()
 
-    # 2. Cost Comparison
-    plt.figure(figsize=(10, 6))
-    for s in series_list:
-        ids = [r.test_id for r in s.records if r.cost is not None]
-        costs = [r.cost for r in s.records if r.cost is not None]
-        plt.plot(ids, costs, marker="x", label=s.name)
-    
-    # Also plot expected if available (from first series that has it)
-    if series_list:
-        ref = series_list[0]
-        ids = [r.test_id for r in ref.records if r.expected_cost is not None]
-        exp = [r.expected_cost for r in ref.records if r.expected_cost is not None]
-        if ids:
-            plt.plot(ids, exp, "k--", label="Optimal (DP)")
-
-    plt.title("TSP Path Cost")
-    plt.xlabel("Test Case ID")
-    plt.ylabel("Cost")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(os.path.join(PLOT_DIR, "tsp_cost.png"), dpi=DPI)
-    plt.close()
+    def run(self):
+        print(f"Starting TSP Benchmark...")
+        print(f"Test Directory: {self.tests_dir}")
+        
+        # Run A*
+        print("\n--- Benchmarking A* (Small Cases Only) ---")
+        astar_series = self.bench_series("A*", run_astar_wrapper)
+        
+        # Run ACO
+        print("\n--- Benchmarking ACO ---")
+        aco_series = self.bench_series("ACO", run_aco_wrapper)
+        
+        # Run GA
+        print("\n--- Benchmarking GA ---")
+        ga_series = self.bench_series("GA", run_ga_wrapper)
+        
+        # Run Hill Climbing
+        print("\n--- Benchmarking Hill Climbing ---")
+        hc_series = self.bench_series("Hill Climbing", run_hill_climbing_wrapper)
+        
+        # Plot
+        self.plot_results([astar_series, aco_series, ga_series, hc_series])
+        print("\nBenchmark Completed.")
 
 def main():
-    print(f"Starting TSP Benchmark...")
-    print(f"Test Directory: {TESTS_DIR}")
-    
-    # Run A*
-    print("\n--- Benchmarking A* (Small Cases Only) ---")
-    astar_series = bench_series("A*", run_astar_wrapper, TESTS_DIR, NUM_CASES)
-    
-    # Run ACO
-    print("\n--- Benchmarking ACO ---")
-    aco_series = bench_series("ACO", run_aco_wrapper, TESTS_DIR, NUM_CASES)
-    
-    # Run GA
-    print("\n--- Benchmarking GA ---")
-    ga_series = bench_series("GA", run_ga_wrapper, TESTS_DIR, NUM_CASES)
-    
-    # Run Hill Climbing
-    print("\n--- Benchmarking Hill Climbing ---")
-    hc_series = bench_series("Hill Climbing", run_hill_climbing_wrapper, TESTS_DIR, NUM_CASES)
-    
-    # Plot
-    plot_results([astar_series, aco_series, ga_series, hc_series])
-    print("\nBenchmark Completed.")
+    benchmark = TSPBenchmark()
+    benchmark.run()
 
 if __name__ == "__main__":
     main()

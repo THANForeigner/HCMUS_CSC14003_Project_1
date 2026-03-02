@@ -1,9 +1,9 @@
 import numpy as np
-from nature_inspire.biology_based import problem
+from nature_inspire import problem
 
 
 class FA:
-    def __init__(self, func_name, pop_size=40, dim=10, max_iter=100):
+    def __init__(self, func_name, pop_size=30, dim=10, max_iter=50, alpha=0.2, beta0=1.0, gamma=0.01):
         # Load bài toán
         p = problem.get_problem(func_name)
         self.func = p["func"]
@@ -15,9 +15,9 @@ class FA:
         self.history = []
 
         # Các tham số chuẩn của FA
-        self.alpha = 0.5  # Độ ngẫu nhiên (Randomness)
-        self.beta0 = 1.0  # Sức hút tại khoảng cách r=0
-        self.gamma = 1.0  # Hệ số hấp thụ ánh sáng (Light absorption)
+        self.alpha = alpha  # Độ ngẫu nhiên (Randomness)
+        self.beta0 = beta0  # Sức hút tại khoảng cách r=0
+        self.gamma = gamma  # Hệ số hấp thụ ánh sáng (Light absorption)
 
     def run(self):
         # 1. Khởi tạo quần thể đom đóm

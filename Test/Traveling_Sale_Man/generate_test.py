@@ -88,11 +88,11 @@ def gen_tsp_test(n, width=100, height=100, seed=42):
 def build_plan_tsp():
     plan = []
 
-    plan.append({"n": 5})
-    plan.append({"n": 8})
     plan.append({"n": 10})
     plan.append({"n": 12})
     plan.append({"n": 13})
+    plan.append({"n": 14})
+    plan.append({"n": 15})
 
     plan.append({"n": 16})
     plan.append({"n": 20})
@@ -104,8 +104,8 @@ def build_plan_tsp():
     plan.append({"n": 60})
     plan.append({"n": 75})
     plan.append({"n": 100})
-    plan.append({"n": 150})
-    plan.append({"n": 200})
+    # plan.append({"n": 150})
+    # plan.append({"n": 200})
 
     return plan
 
