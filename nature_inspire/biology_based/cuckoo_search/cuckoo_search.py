@@ -1,5 +1,5 @@
 import numpy as np
-from nature_inspire import problem
+from problems import problem
 
 
 def levy_flight_butakova(alpha, dim):

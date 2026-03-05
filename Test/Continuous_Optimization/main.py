@@ -26,7 +26,7 @@ from nature_inspire.biology_based.firefly_algorithm.firefly_algorithm import FA
 from nature_inspire.biology_based.cuckoo_search.cuckoo_search import CS
 from nature_inspire.human_based.teaching_learning_based_optimization.teaching_learning_based_optimization import TLBO
 from nature_inspire.human_based.teaching_learning_based_optimization.teaching_learning_based_optimization import TLBO
-from nature_inspire.problem import get_problem, algo_config
+from problems.problem import get_problem, algo_config
 
 
 class ContinuousBenchmark:

@@ -1,5 +1,5 @@
 import numpy as np
-from nature_inspire import problem
+from problems import problem
 
 
 class FA:

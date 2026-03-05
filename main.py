@@ -9,7 +9,7 @@ from Test.Traveling_Sale_Man.main import TSPBenchmark
 from Test.Continuous_Optimization.main import ContinuousBenchmark
 
 try:
-    from nature_inspire.problem import algo_config
+    from problems.problem import algo_config
 except ImportError:
     algo_config = {}
 

@@ -1,5 +1,5 @@
 import numpy as np
-from nature_inspire import continuous_functions
+from problems import continuous_functions
 
 THRESHOLD_FITNESS = 0.01
 TF = 2
