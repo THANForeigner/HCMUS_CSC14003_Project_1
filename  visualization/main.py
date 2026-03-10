@@ -4,7 +4,10 @@ import numpy as np
 
 try:
     import matplotlib
-    matplotlib.use('macosx')
+    if sys.platform == 'darwin':      
+        matplotlib.use('macosx')
+    elif sys.platform == 'win32':     
+        matplotlib.use('TkAgg')
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 
@@ -53,9 +56,8 @@ class InteractiveVisualizer:
             self.histories["HC"] = getattr(solver, "history", [])
 
         elif alg_name == "SA":
-            solver = SA(bounds=[self.lb, self.ub], function=self.func, dim=self.dim,
-                        T=100.0, alpha=0.95, stopping_T=0.001, stopping_iter=self.max_iter)
-            solver.run(times=1)
+            solver = SA(bounds=[self.lb, self.ub], function=self.func, dim=self.dim, stopping_iter=self.max_iter)
+            solver.run()
             self.histories["SA"] = getattr(solver, "history", [])
 
         elif alg_name == "DE":
@@ -70,7 +72,7 @@ class InteractiveVisualizer:
             self.histories["PSO"] = getattr(solver, "history", [])
 
         elif alg_name == "ABC":
-            solver = ABC(function=self.func, ranges=[self.lb, self.ub], dimension=self.dim, swarm_size=30,
+            solver = ABC(function=self.func, ranges=[self.lb, self.ub], limit = 10, dimension=self.dim, swarm_size=30,
                          max_iteration=self.max_iter)
             solver.run()
             self.histories["ABC"] = getattr(solver, "history", [])
