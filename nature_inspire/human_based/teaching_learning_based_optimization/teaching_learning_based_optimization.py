@@ -1,13 +1,13 @@
 import numpy as np
 from problems import continuous_functions
 
-THRESHOLD_FITNESS = 0.01
+THRESHOLD_FITNESS = 1e-8
 TF = 2
 
 
 class TLBO:
     def __init__(
-        self, lower_bound, upper_bound, num_parameters, population_size
+            self, lower_bound, upper_bound, num_parameters, population_size
     ) -> None:
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
@@ -23,6 +23,7 @@ class TLBO:
     def set_optimization_function(self, f):
         self.optimized_function = f
         self.fitness_values = [self.optimized_function(it) for it in self.population]
+        self.history = []
 
     # Select the best candidate to be a teacher,
     # Then each candidate will learn from a teacher.
@@ -47,9 +48,8 @@ class TLBO:
     # candidate value will move forward to their partner if fitness_value if better else do opposite
     def learning_phase(self):
         for i in range(self.population_size):
-            partner_index = np.random.choice(
-                [idx for idx in range(self.population_size) if idx != i]
-            )
+            partner_index = np.random.choice([idx for idx in range(self.population_size) if idx != i]
+                                             )
             candidate = self.population[i]
             partner = self.population[partner_index]
             delta = np.random.uniform(0, 1, self.num_parameters)
@@ -67,12 +67,15 @@ class TLBO:
 
     def run(self, num_iteration):
         for _ in range(num_iteration):
+            self.history.append([list(p) for p in self.population])
             best_fitness = min(self.fitness_values)
             self.teaching_phase()
             self.learning_phase()
             new_best_fitness = min(self.fitness_values)
             if abs(new_best_fitness - best_fitness) < THRESHOLD_FITNESS:
                 break
+
+        self.history.append([list(p) for p in self.population])
 
         best_idx = np.argmin(self.fitness_values)
         return self.fitness_values[best_idx], self.population[best_idx]

@@ -30,12 +30,14 @@ class DE:
         self.best_idx = np.argmin(self.fitness)
         self.best_vector = self.population[self.best_idx]
         self.best_score = self.fitness[self.best_idx]
+        self.history = []
 
     def run(self, max_gen):
         self.max_gen = max_gen
         history = []
         
         for gen in range(self.max_gen):
+            self.history.append([list(p) for p in self.population])
             for i in range(self.pop_size):
                 # 1. MUTATION: Chọn 3 vector ngẫu nhiên khác i (r1, r2, r3)
                 idxs = [idx for idx in range(self.pop_size) if idx != i]

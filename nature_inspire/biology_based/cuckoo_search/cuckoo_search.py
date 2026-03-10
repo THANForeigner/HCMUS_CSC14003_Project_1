@@ -28,12 +28,18 @@ def levy_flight_butakova(alpha, dim):
 
 
 class CS:
-    def __init__(self, func_name, pop_size=30, dim=10, max_iter=50, pa=0.25, beta=1.5):
+    def __init__(self, func_name="", pop_size=30, dim=10, max_iter=50, pa=0.25, beta=1.5, function=None, bounds=None):
         # Load bài toán
-        p = problem.get_problem(func_name)
-        self.func = p["func"]
-        self.lb = p["lb"]
-        self.ub = p["ub"]
+        if function is not None and bounds is not None:
+            self.func = function
+            self.lb = bounds[0]
+            self.ub = bounds[1]
+        else:
+            p = problem.get_problem(func_name)
+            self.func = p["func"]
+            self.lb = p["lb"]
+            self.ub = p["ub"]
+
         self.dim = dim
         self.n_nests = pop_size
         self.max_iter = max_iter
@@ -52,6 +58,8 @@ class CS:
         best_idx = np.argmin(fitness)
         best_nest = nests[best_idx].copy()
         best_score = fitness[best_idx]
+
+        self.history.append(nests.copy())
 
         print(f"--- Bắt đầu CS (Butakova Levy) trên hàm {self.dim} chiều ---")
 
@@ -90,7 +98,7 @@ class CS:
                 best_score = fitness[min_idx]
                 best_nest = nests[min_idx].copy()
 
-            self.history.append(best_score)
+            self.history.append(nests.copy())
 
             if t % 10 == 0:
                 print(f"Vòng {t}: Best Fitness = {best_score:.5f}")

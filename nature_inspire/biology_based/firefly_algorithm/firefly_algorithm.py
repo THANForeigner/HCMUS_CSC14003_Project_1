@@ -3,12 +3,19 @@ from problems import problem
 
 
 class FA:
-    def __init__(self, func_name, pop_size=30, dim=10, max_iter=50, alpha=0.2, beta0=1.0, gamma=0.01):
+    def __init__(self, func_name="", pop_size=30, dim=10, max_iter=50, alpha=0.2, beta0=1.0, gamma=0.01, function=None,
+                 bounds=None):
         # Load bài toán
-        p = problem.get_problem(func_name)
-        self.func = p["func"]
-        self.lb = p["lb"]
-        self.ub = p["ub"]
+        if function is not None and bounds is not None:
+            self.func = function
+            self.lb = bounds[0]
+            self.ub = bounds[1]
+        else:
+            p = problem.get_problem(func_name)
+            self.func = p["func"]
+            self.lb = p["lb"]
+            self.ub = p["ub"]
+
         self.dim = dim
         self.pop_size = pop_size
         self.max_iter = max_iter
@@ -28,6 +35,8 @@ class FA:
         best_idx = np.argmin(fitness)
         global_best = fireflies[best_idx].copy()
         global_best_score = fitness[best_idx]
+
+        self.history.append(fireflies.copy())
 
         print(f"--- Bắt đầu FA trên hàm {self.dim} chiều ---")
 
@@ -68,7 +77,7 @@ class FA:
                 global_best_score = fitness[min_fitness_idx]
                 global_best = fireflies[min_fitness_idx].copy()
 
-            self.history.append(global_best_score)
+            self.history.append(fireflies.copy())
 
             if t % 10 == 0:
                 print(f"Vòng {t}: Best Fitness = {global_best_score:.5f}")
