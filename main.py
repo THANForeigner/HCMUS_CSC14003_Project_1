@@ -1,140 +1,96 @@
 import sys
 import os
-from contextlib import redirect_stdout, contextmanager
-
-from Test.Knapsack.main import KnapsackBenchmark
-from Test.Shortest_Path.main import ShortestPathBenchmark
-from Test.Graph_Coloring.main import GraphColoringBenchmark
-from Test.Traveling_Sale_Man.main import TSPBenchmark
-from Test.Continuous_Optimization.main import ContinuousBenchmark
-
-try:
-    from problems.problem import algo_config
-except ImportError:
-    algo_config = {}
+import subprocess
+from collections import deque
+from rich.live import Live
+from rich.panel import Panel
+from rich.console import Group
+from rich.text import Text
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-@contextmanager
-def set_working_dir(directory):
-    original_dir = os.getcwd()
-    try:
-        os.chdir(directory)
-        yield
-    finally:
-        os.chdir(original_dir)
 
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-class SingleLineStream:
-    def __init__(self):
-        self.terminal = sys.__stdout__
-        self.last_len = 0
+def run_benchmark_with_pin(title, target_dir):
+    MAX_LINES = 25  # Số dòng output tối đa hiển thị
+    log_lines = deque(maxlen=MAX_LINES)
+    custom_env = os.environ.copy()
+    if "PYTHONPATH" in custom_env:
+        custom_env["PYTHONPATH"] = f"{ROOT_DIR}{os.pathsep}{custom_env['PYTHONPATH']}"
+    else:
+        custom_env["PYTHONPATH"] = ROOT_DIR
 
-    def write(self, text):
-        clean_text = text.replace('\n', '').replace('\r', '').strip()
-        if clean_text:
-            display_text = clean_text[:100]
-            out = '\r>> Progress: ' + display_text.ljust(self.last_len)
-            self.terminal.write(out)
-            self.terminal.flush()
-            self.last_len = len(out) - 14
+    # Khởi chạy file main.py tại thư mục đích với custom_env
+    process = subprocess.Popen([sys.executable, "-u", "main.py"],
+        cwd=target_dir,
+        env=custom_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding='utf-8',
+        errors='replace'
+    )
 
-    def flush(self):
-        pass
+    def get_renderable():
+        return Group(
+            Panel(f"[bold green]{title}[/bold green]", border_style="cyan", expand=False),
+            Text("\n".join(log_lines))
+        )
 
-
-def run_with_progress(benchmark_func):
-    """Hàm bọc để chạy thuật toán và gom output vào 1 dòng"""
-    with redirect_stdout(SingleLineStream()):
-        benchmark_func()
-    print("\n[✔] HOÀN THÀNH!")
-
+    try:
+        with Live(get_renderable(), refresh_per_second=15) as live:
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    log_lines.append(line.rstrip('\r\n'))
+                    live.update(get_renderable())
+        process.wait()
+    except KeyboardInterrupt:
+        process.terminate()
+        process.wait()
+        print("\n[Đã dừng thuật toán]")
 
 def run_knapsack():
-    print("\n" + "=" * 50)
-    print("RUNNING KNAPSACK BENCHMARK...")
     target_dir = os.path.join(ROOT_DIR, "Test", "Knapsack")
-    with set_working_dir(target_dir):
-        benchmark = KnapsackBenchmark()
-        run_with_progress(benchmark.run)
+    run_benchmark_with_pin("📌 RUNNING KNAPSACK BENCHMARK...", target_dir)
 
 
 def run_shortest_path():
-    print("\n" + "=" * 50)
-    print("RUNNING SHORTEST PATH BENCHMARK...")
     target_dir = os.path.join(ROOT_DIR, "Test", "Shortest_Path")
-    with set_working_dir(target_dir):
-        benchmark = ShortestPathBenchmark()
-        run_with_progress(benchmark.run)
+    run_benchmark_with_pin("📌 RUNNING SHORTEST PATH BENCHMARK...", target_dir)
 
 
 def run_graph_coloring():
-    print("\n" + "=" * 50)
-    print("RUNNING GRAPH COLORING BENCHMARK...")
     target_dir = os.path.join(ROOT_DIR, "Test", "Graph_Coloring")
-    with set_working_dir(target_dir):
-        benchmark = GraphColoringBenchmark()
-        run_with_progress(benchmark.run)
+    run_benchmark_with_pin("📌 RUNNING GRAPH COLORING BENCHMARK...", target_dir)
 
 
 def run_tsp():
-    print("\n" + "=" * 50)
-    print("RUNNING TRAVELING SALESMAN (TSP) BENCHMARK...")
     target_dir = os.path.join(ROOT_DIR, "Test", "Traveling_Sale_Man")
-    with set_working_dir(target_dir):
-        benchmark = TSPBenchmark()
-        run_with_progress(benchmark.run)
+    run_benchmark_with_pin("📌 RUNNING TRAVELING SALESMAN (TSP) BENCHMARK...", target_dir)
 
 
 def run_continuous_optimization():
-    print("\n" + "=" * 50)
-    print("RUNNING CONTINUOUS OPTIMIZATION BENCHMARK...")
     target_dir = os.path.join(ROOT_DIR, "Test", "Continuous_Optimization")
-    with set_working_dir(target_dir):
-        config = algo_config.get("Continuous_Optimization", {})
-        runs = config.get("runs", 10)
-        max_iter = config.get("max_iter", 100)
-        dim = config.get("dim", 10)
-
-        benchmark = ContinuousBenchmark(runs=runs, max_iter=max_iter, dim=dim)
-        run_with_progress(benchmark.run)
+    run_benchmark_with_pin("📌 RUNNING CONTINUOUS OPTIMIZATION BENCHMARK...", target_dir)
 
 
 def run_all():
     print("\n" + "*" * 50)
-    print("RUNNING ALL BENCHMARKS SEQUENTIALLY")
+    print("🚀 RUNNING ALL BENCHMARKS SEQUENTIALLY")
     print("*" * 50)
+
     run_knapsack()
     run_shortest_path()
     run_graph_coloring()
     run_tsp()
     run_continuous_optimization()
+
     print("\n" + "*" * 50)
-    print("ALL BENCHMARKS COMPLETED")
+    print("✅ ALL BENCHMARKS COMPLETED")
     print("*" * 50)
 
-
-def wait_for_any_key():
-    print("\nPress ANY KEY to return to menu...", end='', flush=True)
-    if os.name == 'nt':
-        import msvcrt
-        msvcrt.getch()
-    else:
-        try:
-            import tty
-            import termios
-            fd = sys.stdin.fileno()
-            old_settings = termios.tcgetattr(fd)
-            try:
-                tty.setraw(sys.stdin.fileno())
-                sys.stdin.read(1)
-            finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        except Exception:
-            input("\nPress Enter to return to menu...")
-    print()
 
 def show_menu():
     print("            ALGORITHM BENCHMARK MENU")
@@ -160,6 +116,9 @@ def main():
             print("\nExiting...")
             sys.exit(0)
 
+        # Xóa màn hình trước khi chạy thuật toán
+        clear_screen()
+
         if choice == '1':
             run_knapsack()
         elif choice == '2':
@@ -173,7 +132,6 @@ def main():
         elif choice == '6':
             run_all()
         elif choice == '0':
-            clear_screen()
             print("Exiting...")
             sys.exit(0)
         else:

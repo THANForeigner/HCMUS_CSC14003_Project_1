@@ -25,16 +25,18 @@ from nature_inspire.biology_based.artificial_bee_colony.artificial_bee_colony im
 from nature_inspire.biology_based.firefly_algorithm.firefly_algorithm import FA
 from nature_inspire.biology_based.cuckoo_search.cuckoo_search import CS
 from nature_inspire.human_based.teaching_learning_based_optimization.teaching_learning_based_optimization import TLBO
-from nature_inspire.human_based.teaching_learning_based_optimization.teaching_learning_based_optimization import TLBO
 from problems.problem import get_problem, algo_config
 
 
 class ContinuousBenchmark:
-    def __init__(self, runs=10, max_iter=100, dim=10):
+    def __init__(self, runs=10, max_iter=100, dim=10, suffix=""):
         self.runs = runs
         self.max_iter = max_iter
         self.dim = dim
-        self.plot_dir = os.path.join(BASE_DIR, "plots")
+        self.suffix = suffix
+
+        folder_name = f"plots{self.suffix}"
+        self.plot_dir = os.path.join(BASE_DIR, folder_name)
         os.makedirs(self.plot_dir, exist_ok=True)
 
         self.algs = {
@@ -66,7 +68,8 @@ class ContinuousBenchmark:
         final_temp = config.get("final_temp", 0.001)
         max_iter = config.get("max_iter", self.max_iter)
 
-        solver = SA(bounds=[lb, ub], function=func, dim=self.dim, T=initial_temp, alpha=alpha, stopping_T=final_temp, stopping_iter=max_iter)
+        solver = SA(bounds=[lb, ub], function=func, dim=self.dim, T=initial_temp, alpha=alpha, stopping_T=final_temp,
+                    stopping_iter=max_iter)
         solver.run(times=1)
         return solver.best_result
 
@@ -87,7 +90,8 @@ class ContinuousBenchmark:
         c2 = config.get("c2", 1.5)
         max_iter = config.get("max_iter", self.max_iter)
 
-        solver = PSO(function=func, dimension=self.dim, ranges=[lb, ub], swarm_size=n_particles, w=w, c1=c1, c2=c2, max_interation=max_iter)
+        solver = PSO(function=func, dimension=self.dim, ranges=[lb, ub], swarm_size=n_particles, w=w, c1=c1, c2=c2,
+                     max_interation=max_iter)
         solver.run()
         return solver.g_best
 
@@ -97,7 +101,8 @@ class ContinuousBenchmark:
         limit = config.get("limit", 20)
         max_iter = config.get("max_iter", self.max_iter)
 
-        solver = ABC(function=func, ranges=[lb, ub], dimension=self.dim, swarm_size=n_bees, limit=limit, max_iteration=max_iter)
+        solver = ABC(function=func, ranges=[lb, ub], dimension=self.dim, swarm_size=n_bees, limit=limit,
+                     max_iteration=max_iter)
         solver.run()
         return func(solver.best_bee.coords)
 
@@ -109,7 +114,8 @@ class ContinuousBenchmark:
         gamma = config.get("gamma", 0.01)
         max_iter = config.get("max_iter", self.max_iter)
 
-        solver = FA(func_name=func_name, pop_size=n_fireflies, dim=self.dim, max_iter=max_iter, alpha=alpha, beta0=beta0, gamma=gamma)
+        solver = FA(func_name=func_name, pop_size=n_fireflies, dim=self.dim, max_iter=max_iter, alpha=alpha,
+                    beta0=beta0, gamma=gamma)
         _, fit = solver.run()
         return fit
 
@@ -137,10 +143,10 @@ class ContinuousBenchmark:
     def run(self):
         print("=" * 60)
         print("STARTING CONTINUOUS OPTIMIZATION BENCHMARK")
-        print(f"Runs per Algo: {self.runs} | Max Iterations: {self.max_iter} | Dimension: {self.dim}")
+        print(
+            f"Runs per Algo: {self.runs} | Max Iterations: {self.max_iter} | Dimension: {self.dim} | Suffix: '{self.suffix}'")
         print("=" * 60)
 
-        # Danh sách chứa dữ liệu để xuất ra CSV
         csv_data = []
 
         for func_name in self.funcs:
@@ -156,7 +162,6 @@ class ContinuousBenchmark:
                 print(f"  Running {alg_name}...", end="", flush=True)
                 alg_scores = []
 
-                # Bắt đầu đo thời gian
                 start_time = time.perf_counter()
 
                 for r in range(self.runs):
@@ -167,11 +172,9 @@ class ContinuousBenchmark:
                         print(f"\n    Error in {alg_name} run {r + 1}: {e}", end="")
                         alg_scores.append(float('inf'))
 
-                # Kết thúc đo thời gian
                 end_time = time.perf_counter()
-                avg_time = (end_time - start_time) / self.runs  # Thời gian trung bình 1 lần chạy
+                avg_time = (end_time - start_time) / self.runs
 
-                # Filter out infinities for stats
                 valid_scores = [s for s in alg_scores if s != float('inf')]
                 if not valid_scores:
                     print(" -> ALL RUNS FAILED!")
@@ -186,7 +189,6 @@ class ContinuousBenchmark:
                     f" Done. Best: {best:.4e}, Worst: {worst:.4e}, Mean: {mean:.4e}, Std: {std:.4e}, Time: {avg_time:.4f}s")
                 func_results[alg_name] = valid_scores
 
-                # Lưu dữ liệu vào list để chuẩn bị xuất CSV
                 csv_data.append({
                     "Function": func_name.upper(),
                     "Algorithm": alg_name,
@@ -197,10 +199,8 @@ class ContinuousBenchmark:
                     "Time (s)": round(avg_time, 5)
                 })
 
-            # Draw Boxplot for this function
             self.draw_boxplot(func_name, func_results)
 
-        # Lưu file CSV sau khi chạy xong tất cả các hàm
         self.export_to_csv(csv_data)
 
     def draw_boxplot(self, func_name, results_dict):
@@ -223,13 +223,12 @@ class ContinuousBenchmark:
         print(f"  * Saved boxplot to {save_path}")
 
     def export_to_csv(self, data):
-        """Hàm ghi danh sách dictionary ra file CSV"""
         if not data:
             return
 
-        csv_file_path = os.path.join(BASE_DIR, "benchmark_results.csv")
+        csv_file_name = f"benchmark_results{self.suffix}.csv"
+        csv_file_path = os.path.join(BASE_DIR, csv_file_name)
 
-        # Lấy tên các cột từ keys của dictionary đầu tiên
         fieldnames = ["Function", "Algorithm", "Mean", "Std", "Best", "Worst", "Time (s)"]
 
         with open(csv_file_path, mode='w', newline='', encoding='utf-8-sig') as file:
@@ -245,8 +244,13 @@ class ContinuousBenchmark:
 
 
 def main():
-    benchmark = ContinuousBenchmark(runs=18, max_iter=366, dim=18)
-    benchmark.run()
+    bench_1 = ContinuousBenchmark(runs=20, max_iter=400, dim=20, suffix="_config1")
+    start_time_1 = time.time()
+    bench_1.run()
+
+    bench_2 = ContinuousBenchmark(runs=10, max_iter=500, dim=30, suffix="_config2")
+    start_time_2 = time.time()
+    bench_2.run()
 
 
 if __name__ == "__main__":
