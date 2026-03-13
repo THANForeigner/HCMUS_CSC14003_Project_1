@@ -2,14 +2,14 @@ import numpy as np
 from problems import problem
 
 
-def levy_flight_butakova(alpha, dim):
+def levy_flight_butakova(alpha, dim, size=1):
     # Step 4:
     beta = alpha / 2.0
 
     # Step 6, 7, 8:
-    chi = np.random.uniform(0, 2 * np.pi, dim)
-    delta = np.random.exponential(1.0, dim)
-    nu = np.random.normal(0, 1.0, dim)
+    chi = np.random.uniform(0, 2 * np.pi, (size, dim))
+    delta = np.random.exponential(1.0, (size, dim))
+    nu = np.random.normal(0, 1.0, (size, dim))
 
     # Step 9:
     epsilon = 1e-10
@@ -23,7 +23,8 @@ def levy_flight_butakova(alpha, dim):
 
     # Step 10 & Eq (3)
     step = np.real(np.sqrt(2 * zeta) * nu)
-
+    if size == 1:
+        return step[0]
     return step
 
 
@@ -61,23 +62,26 @@ class CS:
 
         self.history.append(nests.copy())
 
-        print(f"--- Bắt đầu CS (Butakova Levy) trên hàm {self.dim} chiều ---")
+        # print(f"--- Bắt đầu CS (Butakova Levy) trên hàm {self.dim} chiều ---")
 
         for t in range(self.max_iter):
-            # --- BƯỚC 1: Tìm tổ mới bằng Lévy Flight ---
-            new_nests = nests.copy()
-
+            # --- BƯỚC 1: Tìm tổ mới bằng Lévy Flight (Vận hành dạng Vector) ---
+            step_levy = levy_flight_butakova(self.beta, self.dim, size=self.n_nests)
+            step_direction = step_levy * (nests - best_nest)
+            new_cuckoos = nests + 0.01 * step_direction
+            new_cuckoos = np.clip(new_cuckoos, self.lb, self.ub)
+            
+            # Tính fitness HÀNG LOẠT cho 100% các tổ chim con
+            new_fitness = np.apply_along_axis(self.func, 1, new_cuckoos)
+            
+            # Random xem chim Cuckoo sẽ đẻ trứng vào tổ nào
+            replace_idx = np.random.randint(0, self.n_nests, self.n_nests)
+            
             for i in range(self.n_nests):
-                origin = nests[i]
-                step_levy = levy_flight_butakova(self.beta, self.dim)
-                step_direction = step_levy * (origin - best_nest)
-                new_cuckoo = origin + 0.01 * step_direction
-                new_cuckoo = np.clip(new_cuckoo, self.lb, self.ub)
-                f_new = self.func(new_cuckoo)
-                j = np.random.randint(0, self.n_nests)
-                if f_new < fitness[j]:
-                    nests[j] = new_cuckoo
-                    fitness[j] = f_new
+                j = replace_idx[i]
+                if new_fitness[i] < fitness[j]:
+                    nests[j] = new_cuckoos[i]
+                    fitness[j] = new_fitness[i]
 
             # --- BƯỚC 2: Loại bỏ tổ tồi (Local Random Walk) ---
             # Tạo ma trận mask K (True là bị phát hiện)
@@ -100,7 +104,7 @@ class CS:
 
             self.history.append(nests.copy())
 
-            if t % 10 == 0:
-                print(f"Vòng {t}: Best Fitness = {best_score:.5f}")
+            # if t % 10 == 0:
+            #     print(f"Vòng {t}: Best Fitness = {best_score:.5f}")
 
         return best_nest, best_score

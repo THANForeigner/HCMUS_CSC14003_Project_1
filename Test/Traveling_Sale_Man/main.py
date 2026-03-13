@@ -18,6 +18,7 @@ from classical.informed.A_star_TSP import AStarTSP
 from classical.local.hill_climbing_tsp import HillClimbingTSP
 from nature_inspire.biology_based.ant_colony_optimization.ant_colony_optimization_tsp import ACO_TSP
 from nature_inspire.evolution_based.genetic_algorithm.genetic_algorithm_tsp import GA_TSP
+from nature_inspire.physic_based.simulated_annealing.simulated_annealing_tsp import SA_TSP
  
 
 try:
@@ -180,6 +181,20 @@ def run_hill_climbing_wrapper(points: List[Tuple[float, float]]) -> Optional[Tup
     except Exception as e:
         return None
 
+def run_sa_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
+    n = len(points)
+    if n > 300:
+        return None
+
+    # T=100, stopping_T=0.001, alpha=0.95 from user request
+    solver = SA_TSP(max_vertices=n, coords=points, T=100, stopping_T=0.001, alpha=0.95)
+    try:
+        solver.run(times=5) # Run multiple times to improve result
+        return solver.best_solution_result, solver.best_solution_nodes
+    except Exception as e:
+        print(f"SA Error: {e}")
+        return None
+
 # --- BENCHMARK CLASS ---
 class TSPBenchmark:
     def __init__(self, tests_dir: str = TESTS_DIR, plot_dir: str = PLOT_DIR, num_cases: int = NUM_CASES, save_plots: bool = SAVE_PLOTS, dpi: int = DPI):
@@ -327,8 +342,12 @@ class TSPBenchmark:
         print("\n--- Benchmarking Hill Climbing ---")
         hc_series = self.bench_series("Hill Climbing", run_hill_climbing_wrapper)
         
+        # Run Simulated Annealing
+        print("\n--- Benchmarking Simulated Annealing ---")
+        sa_series = self.bench_series("Simulated Annealing", run_sa_wrapper)
+        
         # Plot
-        self.plot_results([astar_series, aco_series, ga_series, hc_series])
+        self.plot_results([astar_series, aco_series, ga_series, hc_series, sa_series])
         print("\nBenchmark Completed.")
 
 def main():

@@ -38,6 +38,10 @@ class DE:
         
         for gen in range(self.max_gen):
             self.history.append([list(p) for p in self.population])
+            
+            # Prepare parallel arrays
+            trial_population = np.zeros_like(self.population)
+            
             for i in range(self.pop_size):
                 # 1. MUTATION: Chọn 3 vector ngẫu nhiên khác i (r1, r2, r3)
                 idxs = [idx for idx in range(self.pop_size) if idx != i]
@@ -55,26 +59,29 @@ class DE:
                 if not np.any(cross_points):
                     cross_points[np.random.randint(0, self.dim)] = True
                 
-                trial_vector = np.where(cross_points, mutant_vector, self.population[i])
+                trial_population[i] = np.where(cross_points, mutant_vector, self.population[i])
                 
-                # 3. SELECTION: Greedy (Chỉ lấy nếu tốt hơn cha mẹ)
-                trial_fitness = self.func(trial_vector)
-                
-                if trial_fitness < self.fitness[i]:
-                    self.fitness[i] = trial_fitness
-                    self.population[i] = trial_vector
-                    
-                    # Cập nhật Global Best
-                    if trial_fitness < self.best_score:
-                        self.best_score = trial_fitness
-                        self.best_vector = trial_vector
+            # --- EVALUATE ALL TRIAL VECTORS ONCE (SYNCHRONIZED NumPy Vector) ---
+            trial_fitnesses = np.apply_along_axis(self.func, 1, trial_population)
+            
+            # 3. SELECTION: Greedy
+            better_idx = trial_fitnesses < self.fitness
+            self.population[better_idx] = trial_population[better_idx]
+            self.fitness[better_idx] = trial_fitnesses[better_idx]
+            
+            # Cập nhật Global Best
+            min_trial_idx = np.argmin(self.fitness)
+            if self.fitness[min_trial_idx] < self.best_score:
+                self.best_score = self.fitness[min_trial_idx]
+                self.best_vector = self.population[min_trial_idx].copy()
 
             history.append(self.best_score)
 
             # Log mỗi 100 generation
             if (gen+1) % 100 == 0:
-                print(f"Gen {gen+1}: Best Fitness = {self.best_score:.10f}")
+                # print(f"Gen {gen+1}: Best Fitness = {self.best_score:.10f}")
                 
+
                 # Điều kiện dừng sớm nếu đã tìm ra 0 (tuyệt đối)
                 if self.best_score == 0:
                     break

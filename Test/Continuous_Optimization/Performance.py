@@ -3,6 +3,8 @@ import sys
 import numpy as np
 import time
 import csv
+import os
+from joblib import Parallel, delayed
 
 try:
     import matplotlib.pyplot as plt
@@ -53,8 +55,8 @@ class ContinuousBenchmark:
 
     def run_hc(self, func_name, func, lb, ub):
         config = algo_config.get("HC", {})
-        step_size = config.get("step_size", 0.5)
-        max_iter = config.get("max_iter", self.max_iter)
+        step_size = 0.05 * (ub - lb) # Dynamic step size taking 5% of bounds
+        max_iter = self.max_iter * 30 * self.dim # Equal NFE & Scale with Dimension
 
         solver = HillClimbing(lb, ub, self.dim, step_size=step_size)
         solver.set_optimization_function(func)
@@ -66,7 +68,7 @@ class ContinuousBenchmark:
         initial_temp = config.get("initial_temp", 100.0)
         alpha = config.get("alpha", 0.95)
         final_temp = config.get("final_temp", 0.001)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * self.dim # Scale with Dimension
 
         solver = SA(bounds=[lb, ub], function=func, dim=self.dim, T=initial_temp, alpha=alpha, stopping_T=final_temp,
                     stopping_iter=max_iter)
@@ -76,9 +78,11 @@ class ContinuousBenchmark:
     def run_de(self, func_name, func, lb, ub):
         config = algo_config.get("DE", {})
         pop_size = config.get("pop_size", 30)
-        max_iter = config.get("max_iter", self.max_iter)
+        f = config.get("F", 0.5)
+        cr = config.get("CR", 0.9)
+        max_iter = self.max_iter * self.dim # Scale with Dimension
 
-        solver = DE(func, bounds=[lb, ub], dim=self.dim, pop_size=pop_size, max_gen=max_iter)
+        solver = DE(func, bounds=[lb, ub], dim=self.dim, pop_size=pop_size, max_gen=max_iter, F=f, Cr=cr)
         res, _ = solver.run(max_iter)
         return res[0]
 
@@ -88,7 +92,7 @@ class ContinuousBenchmark:
         w = config.get("w", 0.7)
         c1 = config.get("c1", 1.5)
         c2 = config.get("c2", 1.5)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * self.dim # Scale with Dimension
 
         solver = PSO(function=func, dimension=self.dim, ranges=[lb, ub], swarm_size=n_particles, w=w, c1=c1, c2=c2,
                      max_interation=max_iter)
@@ -98,8 +102,8 @@ class ContinuousBenchmark:
     def run_abc(self, func_name, func, lb, ub):
         config = algo_config.get("ABC", {})
         n_bees = config.get("n_bees", 30)
-        limit = config.get("limit", 20)
-        max_iter = config.get("max_iter", self.max_iter)
+        limit = int((n_bees / 2) * self.dim) # Setup limit dynamically proportional to dimension
+        max_iter = self.max_iter * self.dim # Scale with Dimension
 
         solver = ABC(function=func, ranges=[lb, ub], dimension=self.dim, swarm_size=n_bees, limit=limit,
                      max_iteration=max_iter)
@@ -111,8 +115,8 @@ class ContinuousBenchmark:
         n_fireflies = config.get("n_fireflies", 30)
         alpha = config.get("alpha", 0.2)
         beta0 = config.get("beta0", 1.0)
-        gamma = config.get("gamma", 0.01)
-        max_iter = config.get("max_iter", self.max_iter)
+        gamma = 1.0 / np.sqrt(ub - lb) # Dynamic Light absorption
+        max_iter = self.max_iter * self.dim # Scale with Dimension
 
         solver = FA(func_name=func_name, pop_size=n_fireflies, dim=self.dim, max_iter=max_iter, alpha=alpha,
                     beta0=beta0, gamma=gamma)
@@ -124,7 +128,7 @@ class ContinuousBenchmark:
         n_nests = config.get("n_nests", 30)
         pa = config.get("pa", 0.25)
         beta = config.get("beta", 1.5)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * self.dim # Scale with Dimension
 
         solver = CS(func_name=func_name, pop_size=n_nests, dim=self.dim, max_iter=max_iter, pa=pa, beta=beta)
         _, fit = solver.run()
@@ -133,7 +137,7 @@ class ContinuousBenchmark:
     def run_tlbo(self, func_name, func, lb, ub):
         config = algo_config.get("TLBO", {})
         population_size = config.get("population_size", 30)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * self.dim # Scale with Dimension
 
         solver = TLBO(lb, ub, self.dim, population_size=population_size)
         solver.set_optimization_function(func)
@@ -159,25 +163,37 @@ class ContinuousBenchmark:
             func_results = {}
 
             for alg_name, wrapper in self.algs.items():
-                print(f"  Running {alg_name}...", end="", flush=True)
+                print(f"  Running {alg_name}...")
                 alg_scores = []
 
-                start_time = time.perf_counter()
+                # --- WARM UP PHASE ---
+                try:
+                    _ = wrapper(func_name, func, lb, ub)
+                except:
+                    pass
+                # ---------------------
 
-                for r in range(self.runs):
+                def _run_single_execution():
+                    start_t = time.perf_counter()
                     try:
                         score = wrapper(func_name, func, lb, ub)
-                        alg_scores.append(score)
                     except Exception as e:
-                        print(f"\n    Error in {alg_name} run {r + 1}: {e}", end="")
-                        alg_scores.append(float('inf'))
+                        score = float('inf')
+                    end_t = time.perf_counter()
+                    return score, end_t - start_t
 
-                end_time = time.perf_counter()
-                avg_time = (end_time - start_time) / self.runs
+                # Run parallelly using half the available CPU cores to prevent 100% lockups
+                n_workers = max(1, os.cpu_count() // 2)
+                results = Parallel(n_jobs=n_workers)(delayed(_run_single_execution)() for _ in range(self.runs))
+                
+                # Unpack parallel results
+                alg_scores = [res[0] for res in results]
+                total_time = sum(res[1] for res in results)
+                avg_time = total_time / self.runs
 
                 valid_scores = [s for s in alg_scores if s != float('inf')]
                 if not valid_scores:
-                    print(" -> ALL RUNS FAILED!")
+                    print("    -> ALL RUNS FAILED!")
                     continue
 
                 best = np.min(valid_scores)
@@ -186,7 +202,7 @@ class ContinuousBenchmark:
                 std = np.std(valid_scores)
 
                 print(
-                    f" Done. Best: {best:.4e}, Worst: {worst:.4e}, Mean: {mean:.4e}, Std: {std:.4e}, Time: {avg_time:.4f}s")
+                    f"    -> Done. Best: {best:.4e}, Worst: {worst:.4e}, Mean: {mean:.4e}, Std: {std:.4e}, Time: {avg_time:.4f}s")
                 func_results[alg_name] = valid_scores
 
                 csv_data.append({
@@ -244,10 +260,12 @@ class ContinuousBenchmark:
 
 
 def performance_test():
-    bench_1 = ContinuousBenchmark(runs=20, max_iter=400, dim=20, suffix="_config1")
+    bench_1 = ContinuousBenchmark(runs=30, max_iter=400, dim=20, suffix="_config1")
     start_time_1 = time.time()
     bench_1.run()
 
-    bench_2 = ContinuousBenchmark(runs=10, max_iter=500, dim=30, suffix="_config2")
+    bench_2 = ContinuousBenchmark(runs=30, max_iter=500, dim=30, suffix="_config2")
     start_time_2 = time.time()
     bench_2.run()
+
+

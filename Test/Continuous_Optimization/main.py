@@ -4,13 +4,13 @@ from Time_and_accuracy import time_and_accuracy_test
 
 def main():
     while True:
-        print("\n" + "=" * 45)
+        print("\n" + "=" * 55)
         print("          BENCHMARK TESTING MENU")
-        print("=" * 45)
+        print("=" * 55)
         print("1. Run Performance Test (Continuous Benchmark)")
         print("2. Run Time and Accuracy Test (Scalability)")
         print("3. Exit")
-        print("=" * 45)
+        print("=" * 55)
         
         choice = input("Enter your choice (1-3): ").strip()
         

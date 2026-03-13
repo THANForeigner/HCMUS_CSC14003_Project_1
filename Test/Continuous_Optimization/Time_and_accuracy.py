@@ -3,6 +3,8 @@ import sys
 import numpy as np
 import time
 import csv
+import os
+from joblib import Parallel, delayed
 
 try:
     import matplotlib.pyplot as plt
@@ -52,7 +54,7 @@ class DimensionalityBenchmark:
     def run_hc(self, func_name, func, lb, ub, dim):
         config = algo_config.get("HC", {})
         step_size = config.get("step_size", 0.5)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter
 
         solver = HillClimbing(lb, ub, dim, step_size=step_size)
         solver.set_optimization_function(func)
@@ -64,7 +66,7 @@ class DimensionalityBenchmark:
         initial_temp = config.get("initial_temp", 1000.0)
         alpha = config.get("alpha", 0.95)
         final_temp = config.get("final_temp", 1e-8)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * dim # Scale with Dimension
 
         solver = SA(bounds=[lb, ub], function=func, dim=dim, T=initial_temp, step_size=0.5, alpha=alpha, stopping_T=final_temp, stopping_iter=max_iter)
         solver.run()
@@ -73,7 +75,7 @@ class DimensionalityBenchmark:
     def run_de(self, func_name, func, lb, ub, dim):
         config = algo_config.get("DE", {})
         pop_size = config.get("pop_size", 30)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter
 
         solver = DE(func, bounds=[lb, ub], dim=dim, pop_size=pop_size, max_gen=max_iter)
         res, _ = solver.run(max_iter)
@@ -85,7 +87,7 @@ class DimensionalityBenchmark:
         w = config.get("w", 0.7)
         c1 = config.get("c1", 1.5)
         c2 = config.get("c2", 1.5)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * dim # Scale with Dimension
 
         solver = PSO(function=func, dimension=dim, ranges=[lb, ub], swarm_size=n_particles, w=w, c1=c1, c2=c2, max_interation=max_iter)
         solver.run()
@@ -94,8 +96,8 @@ class DimensionalityBenchmark:
     def run_abc(self, func_name, func, lb, ub, dim):
         config = algo_config.get("ABC", {})
         n_bees = config.get("n_bees", 30)
-        limit = config.get("limit", 20)
-        max_iter = config.get("max_iter", self.max_iter)
+        limit = int((n_bees / 2) * dim) # Dynamic limit
+        max_iter = self.max_iter * dim # Scale with Dimension
 
         solver = ABC(function=func, ranges=[lb, ub], dimension=dim, swarm_size=n_bees, limit=limit, max_iteration=max_iter)
         solver.run()
@@ -106,8 +108,8 @@ class DimensionalityBenchmark:
         n_fireflies = config.get("n_fireflies", 30)
         alpha = config.get("alpha", 0.2)
         beta0 = config.get("beta0", 1.0)
-        gamma = config.get("gamma", 0.01)
-        max_iter = config.get("max_iter", self.max_iter)
+        gamma = 1.0 / np.sqrt(ub - lb) # Dynamic gamma
+        max_iter = self.max_iter * dim # Scale with Dimension
 
         solver = FA(func_name=func_name, pop_size=n_fireflies, dim=dim, max_iter=max_iter, alpha=alpha, beta0=beta0, gamma=gamma)
         _, fit = solver.run()
@@ -118,7 +120,7 @@ class DimensionalityBenchmark:
         n_nests = config.get("n_nests", 30)
         pa = config.get("pa", 0.25)
         beta = config.get("beta", 1.5)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * dim # Scale with Dimension
 
         solver = CS(func_name=func_name, pop_size=n_nests, dim=dim, max_iter=max_iter, pa=pa, beta=beta)
         _, fit = solver.run()
@@ -127,7 +129,7 @@ class DimensionalityBenchmark:
     def run_tlbo(self, func_name, func, lb, ub, dim):
         config = algo_config.get("TLBO", {})
         population_size = config.get("population_size", 30)
-        max_iter = config.get("max_iter", self.max_iter)
+        max_iter = self.max_iter * dim # Scale with Dimension
 
         solver = TLBO(lb, ub, dim, population_size=population_size)
         solver.set_optimization_function(func)
@@ -158,23 +160,41 @@ class DimensionalityBenchmark:
             for alg_name, wrapper in self.algs.items():
                 print(f"  Running {alg_name}...")
                 
+                # --- WARM UP PHASE ---
+                # Chạy nháp 1 lần với 1D để loại bỏ "Cold start" (thời gian nạp thư viện/JIT) 
+                try:
+                    _ = wrapper(func_name, func, lb, ub, 1)
+                except:
+                    pass
+                # ---------------------
+                
                 for dim in dimensions:
-                    success_count = 0
-                    total_time = 0.0
-
-                    for r in range(self.runs):
-                        start_time = time.perf_counter()
+                    def _run_single_execution():
+                        start_t = time.perf_counter()
                         try:
                             score = wrapper(func_name, func, lb, ub, dim)
-                            # Kiểm tra xem kết quả có nhỏ hơn ngưỡng tolerance không (tỷ lệ đúng)
-                            if score < self.tolerance:
-                                success_count += 1
-                        except Exception as e:
-                            print(f"\n    Error in {alg_name} (dim {dim}, run {r + 1}): {e}", end="")
-                            score = float('inf')
-                        end_time = time.perf_counter()
-                        
-                        total_time += (end_time - start_time)
+                            is_success = not np.isnan(score) and score < (self.tolerance * dim)
+                        except Exception:
+                            is_success = False
+                        end_t = time.perf_counter()
+                        return is_success, end_t - start_t
+
+                    # Execute all 30 runs for this dimension in parallel (limit to half cores to prevent lockup)
+                    # Execute all 30 runs for this dimension in parallel (limit to half cores to prevent lockup)
+                    print(f"      Dim {dim}: ", end="", flush=True)
+                    dim_start_time = time.time()
+                    n_workers = max(1, os.cpu_count() // 2)
+                    results = Parallel(n_jobs=n_workers)(delayed(_run_single_execution)() for _ in range(self.runs))
+                    dim_time_taken = time.time() - dim_start_time
+                    mins, secs = divmod(dim_time_taken, 60)
+                    if mins > 0:
+                        print(f"Done in {int(mins)}m {secs:.2f}s")
+                    else:
+                        print(f"Done in {secs:.2f}s")
+
+                    # Aggregate results
+                    success_count = sum(1 for res in results if res[0])
+                    total_time = sum(res[1] for res in results)
 
                     avg_time = total_time / self.runs
                     success_rate = (success_count / self.runs) * 100  # Tính bằng %
@@ -259,5 +279,5 @@ class DimensionalityBenchmark:
 
 def time_and_accuracy_test():
     # 10 lần chạy, max iter tùy bạn chỉnh, max_dim = 20
-    benchmark = DimensionalityBenchmark(runs=5, max_iter=1000, max_dim=20, tolerance=0.1)
+    benchmark = DimensionalityBenchmark(runs=30, max_iter=1000, max_dim=20, tolerance=0.1)
     benchmark.run()

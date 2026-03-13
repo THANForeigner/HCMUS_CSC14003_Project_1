@@ -5,8 +5,18 @@ import time
 import tracemalloc
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Any
+# Ensure project root and necessary module paths are in sys.path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+sys.path.append(os.path.join(PROJECT_ROOT, 'nature_inspire', 'evolution_based', 'genetic_algorithm'))
+
 from classical.uninformed.depth_first_search_graph_coloring import DFS_GraphColoring
 from nature_inspire.biology_based.ant_colony_optimization.ant_colony_optimization_graph_coloring import ACO_GraphColoring
+from nature_inspire.evolution_based.genetic_algorithm.genetic_algorithm_graph_coloring import GA_GraphColoring
+from nature_inspire.physic_based.simulated_annealing.simulated_annealing_graph_coloring import SA_GraphColoring
+import numpy as np
 try:
     import matplotlib.pyplot as plt
     MATPLOTLIB_AVAILABLE = True
@@ -123,6 +133,75 @@ def run_aco_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int,
         print(f"ACO Error: {e}")
         return None
 
+def run_ga_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, List[int]]]:
+    # GA needs adj matrix
+    adj_matrix = np.zeros((n, n), dtype=int)
+    for u, v in edges:
+        adj_matrix[u-1][v-1] = 1
+        adj_matrix[v-1][u-1] = 1
+        
+    config = algo_config.get("GA", {})
+    pop_size = config.get("population_size", 50)
+    max_iter = config.get("max_iter", 100)
+    mutation_rate = config.get("mutation_rate", 0.1)
+
+    # We need to find the chromatic number k, but usually GA is given a fixed k.
+    # We can try to find the smallest k like DFS does, but that's slow.
+    # For benchmark, let's use a heuristic upper bound or just start from a reasonable K.
+    # To be consistent with the benchmark's goal of comparing performance for a valid coloring:
+    for k in range(1, n + 1):
+        solver = GA_GraphColoring(
+            adj_matrix=adj_matrix, 
+            num_colors=k, 
+            pop_size=pop_size, 
+            generations=max_iter, 
+            mutation_rate=mutation_rate
+        )
+        try:
+            (best_ind, best_fitness), history = solver.run()
+            if best_fitness == 0:
+                # GA uses 0-indexed colors internally, benchmark expects 1-indexed (or 0-indexed but let's see)
+                # Actually is_valid_coloring handles it.
+                # Let's return colors shifted to 1..k if needed, but GA_GraphColoring uses 0..k-1
+                # is_valid_coloring expects 1-indexed colors if len(colors) == n
+                return k, [c + 1 for c in best_ind]
+        except Exception as e:
+            print(f"GA Error at K={k}: {e}")
+            continue
+    return None
+
+def run_sa_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, List[int]]]:
+    # SA expects 0-indexed edges internally for graph_energy?
+    # No, SA_GraphColoring.get_graph_energy uses colored_graph[u] == colored_graph[v]
+    # In initial_solution: return [random.randrange(self.max_colors) for _ in range(self.max_n)]
+    # So it expects max_n to be the number of nodes, and nodes to be 0..max_n-1
+    # Our edges are 1-indexed. Let's convert them.
+    zero_indexed_edges = [(u-1, v-1) for u, v in edges]
+    
+    config = algo_config.get("SA", {})
+    # Using user requested defaults where applicable, else defaults from implementation
+    T = config.get("T", 100)
+    alpha = config.get("alpha", 0.95)
+    stopping_T = config.get("stopping_T", 0.001)
+
+    for k in range(1, n + 1):
+        solver = SA_GraphColoring(
+            max_colors=k, 
+            max_vertices=n, 
+            edges=zero_indexed_edges, 
+            T=T, 
+            alpha=alpha, 
+            stopping_T=stopping_T
+        )
+        try:
+            solver.run(times=10)
+            if solver.best_energy == 0:
+                return k, [c + 1 for c in solver.best_solution]
+        except Exception as e:
+            print(f"SA Error at K={k}: {e}")
+            continue
+    return None
+
 # --- BENCHMARK CLASS ---
 class GraphColoringBenchmark:
     def __init__(self, tests_dir: str = TESTS_DIR, plot_dir: str = PLOT_DIR, num_cases: int = NUM_CASES, save_plots: bool = SAVE_PLOTS, dpi: int = DPI):
@@ -233,8 +312,16 @@ class GraphColoringBenchmark:
         print("\n--- Benchmarking ACO ---")
         aco_series = self.bench_series("ACO", run_aco_wrapper)
         
+        # Run GA
+        print("\n--- Benchmarking GA ---")
+        ga_series = self.bench_series("GA", run_ga_wrapper)
+        
+        # Run SA
+        print("\n--- Benchmarking SA ---")
+        sa_series = self.bench_series("SA", run_sa_wrapper)
+        
         # Plot
-        self.plot_results([dfs_series, aco_series])
+        self.plot_results([dfs_series, aco_series, ga_series, sa_series])
         print("\nBenchmark Completed.")
 
 def main():

@@ -1,6 +1,6 @@
 import numpy as np
 
-THRESHOLD_FITNESS = 0.01
+THRESHOLD_FITNESS = 1e-9
 
 
 class HillClimbing:
@@ -25,15 +25,17 @@ class HillClimbing:
         # We sample a few neighbors to find a direction of improvement
         num_neighbors = 20
 
-        for _ in range(num_neighbors):
-            delta = np.random.uniform(-1, 1, self.num_parameters) * self.step_size
-            neighbor = self.current_state + delta
-            neighbor = np.clip(neighbor, self.lower_bound, self.upper_bound)
-
-            new_fitness = self.optimized_function(neighbor)
-            if new_fitness < self.current_fitness:
-                self.current_state = neighbor
-                self.current_fitness = new_fitness
+        deltas = np.random.uniform(-1, 1, (num_neighbors, self.num_parameters)) * self.step_size
+        neighbors = self.current_state + deltas
+        neighbors = np.clip(neighbors, self.lower_bound, self.upper_bound)
+        
+        fitnesses = np.apply_along_axis(self.optimized_function, 1, neighbors)
+        best_idx = np.argmin(fitnesses)
+        best_new_fitness = fitnesses[best_idx]
+        
+        if best_new_fitness < self.current_fitness:
+            self.current_state = neighbors[best_idx]
+            self.current_fitness = best_new_fitness
 
     def run(self, num_iteration):
         for _ in range(num_iteration):

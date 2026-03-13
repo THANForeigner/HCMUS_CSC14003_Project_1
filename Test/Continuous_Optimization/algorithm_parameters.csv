@@ -1,0 +1,40 @@
+Thuật toán,Tham số,Giá trị,Ý nghĩa
+PSO,n_particles,30,Số hạt trong bầy đàn
+PSO,w,0.7,Hệ số quán tính (inertia weight)
+PSO,c1,1.5,Hệ số nhận thức (cognitive coefficient)
+PSO,c2,1.5,Hệ số xã hội (social coefficient)
+PSO,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)
+ACO,n_ants,30,Số kiến trong thuật toán
+ACO,archive_size,50,Kích thước kho lưu trữ solutions
+ACO,q,0.5,Độ rộng Gaussian kernel
+ACO,xi,0.85,Tốc độ hội tụ (convergence speed)
+ACO,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)
+ABC,n_bees,30,Số ong trong thuật toán
+ABC,limit,15 * D,Giới hạn từ bỏ nguồn mật (Tương đương n_bees/2 * D)
+ABC,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)
+Firefly,n_fireflies,30,Số đom đóm
+Firefly,alpha,0.2,Hệ số ngẫu nhiên (randomization)
+Firefly,beta0,1.0,Độ hấp dẫn ban đầu (initial attractiveness)
+Firefly,gamma,1/sqrt(ub-lb),Hệ số hấp thụ ánh sáng (Scale tỷ lệ nghịch theo miền giá trị)
+Firefly,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)
+Cuckoo,n_nests,30,Số tổ chim cu-cu
+Cuckoo,pa,0.25,Xác suất phát hiện (discovery probability)
+Cuckoo,beta,1.5,Lévy flight exponent
+Cuckoo,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)
+GA,population_size,50,Kích thước quần thể
+GA,crossover_rate,0.8,Tỷ lệ lai ghép
+GA,mutation_rate,0.1,Tỷ lệ đột biến
+GA,elite_size,2,Số cá thể tinh hoa được giữ lại
+GA,max_iter,max_iter * D,Số thế hệ tối đa (Tỷ lệ thuận theo số chiều D)
+SA,initial_temp,100.0,Nhiệt độ ban đầu
+SA,alpha,0.95,Tốc độ làm nguội (cooling rate)
+SA,final_temp,0.001,Nhiệt độ cuối cùng
+SA,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)
+HC,step_size,5% * (ub-lb),Kích thước bước nhảy (Scale động 5% theo miền giá trị vòng tìm kiếm)
+HC,max_iter,max_iter * 30 * D,Số vòng lặp tối đa (Nhân 30 để cân bằng NFE với các thuật toán quần thể)
+DE,pop_size,30,Kích thước quần thể
+DE,F,0.5,Hệ số đột biến (Scaling Factor)
+DE,CR,0.9,Tỷ lệ lai ghép (Crossover Rate)
+DE,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)
+TLBO,population_size,30,Kích thước lớp học
+TLBO,max_iter,max_iter * D,Số vòng lặp tối đa (Tỷ lệ thuận theo số chiều D)

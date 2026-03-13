@@ -6,8 +6,11 @@ import tracemalloc
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple, Any
 
-# Ensure we can import from parent directory
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Ensure project root and necessary module paths are in sys.path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, '..', '..'))
+sys.path.append(PROJECT_ROOT)
+sys.path.append(os.path.join(PROJECT_ROOT, 'nature_inspire', 'evolution_based', 'genetic_algorithm'))
 
 try:
     from classical.informed.A_star_Knapsack import AStarKnapsack
@@ -23,6 +26,12 @@ try:
     from nature_inspire.evolution_based.genetic_algorithm.genetic_algorithm_knapsack import GA_Knapsack as GeneticAlgorithmKnapsack
 except ImportError as e:
     print(f"Warning: GeneticAlgorithmKnapsack (GA_Knapsack) not found. {e}")
+
+try:
+    from nature_inspire.biology_based.artificial_bee_colony.artificial_bee_colony_knapsack import ABC_Knapsack
+except ImportError as e:
+    ABC_Knapsack = None
+    print(f"Warning: ABC_Knapsack not found. {e}")
 
 
 try:
@@ -143,6 +152,34 @@ def run_ga_wrapper(capacity: int, weights: List[int], values: List[int]) -> Opti
         return fitness, ind
     except Exception as e:
         print(f"GA Error: {e}")
+        return None
+
+def run_abc_wrapper(capacity: int, weights: List[int], values: List[int]) -> Optional[Tuple[float, List[int]]]:
+    if ABC_Knapsack is None:
+        return None
+    
+    n = len(weights)
+    # Default params if not in algo_config
+    abc_config = algo_config.get("ABC", {})
+    swarm_size = abc_config.get("swarm_size", 40)
+    max_iter = abc_config.get("max_iter", 100)
+    limit = abc_config.get("limit", 20)
+    
+    try:
+        solver = ABC_Knapsack(
+            items=n, 
+            capacity=capacity, 
+            weight=weights, 
+            cost=values, 
+            swarm_size=swarm_size, 
+            limit=limit, 
+            max_iteration=max_iter
+        )
+        solver.run()
+        # best_bee is a Bee object, best_bee.coords is np.array, best_bee.fitness is value
+        return solver.best_bee.fitness, solver.best_bee.coords.tolist()
+    except Exception as e:
+        print(f"ABC Error: {e}")
         return None
 
 # --- BENCHMARK CLASS ---
@@ -290,8 +327,12 @@ class KnapsackBenchmark:
         print("\n--- Benchmarking Genetic Algorithm ---")
         ga_series = self.bench_series("GA", run_ga_wrapper)
         
+        # Run ABC
+        print("\n--- Benchmarking Artificial Bee Colony ---")
+        abc_series = self.bench_series("ABC", run_abc_wrapper)
+        
         # Plot
-        self.plot_results([astar_series, ga_series])
+        self.plot_results([astar_series, ga_series, abc_series])
         print("\nBenchmark Completed.")
 
 def main():
