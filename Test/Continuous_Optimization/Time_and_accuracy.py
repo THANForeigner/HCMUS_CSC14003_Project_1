@@ -28,7 +28,7 @@ from problems.problem import get_problem, algo_config
 
 
 class DimensionalityBenchmark:
-    def __init__(self, runs=10, max_iter=100, max_dim=20, tolerance=1e-4):
+    def __init__(self, runs=10, max_iter=500, max_dim=20, tolerance=1e-4):
         self.runs = runs
         self.max_iter = max_iter
         self.max_dim = max_dim
@@ -61,12 +61,12 @@ class DimensionalityBenchmark:
 
     def run_sa(self, func_name, func, lb, ub, dim):
         config = algo_config.get("SA", {})
-        initial_temp = config.get("initial_temp", 100.0)
+        initial_temp = config.get("initial_temp", 1000.0)
         alpha = config.get("alpha", 0.95)
-        final_temp = config.get("final_temp", 0.001)
+        final_temp = config.get("final_temp", 1e-8)
         max_iter = config.get("max_iter", self.max_iter)
 
-        solver = SA(bounds=[lb, ub], function=func, dim=dim, T=initial_temp, alpha=alpha, stopping_T=final_temp, stopping_iter=max_iter)
+        solver = SA(bounds=[lb, ub], function=func, dim=dim, T=initial_temp, step_size=0.5, alpha=alpha, stopping_T=final_temp, stopping_iter=max_iter)
         solver.run()
         return solver.best_result
 
@@ -257,8 +257,7 @@ class DimensionalityBenchmark:
         print(f"[+] Đã xuất báo cáo thành công ra file: {csv_file_path}")
         print("=" * 70)
 
-
 def time_and_accuracy_test():
     # 10 lần chạy, max iter tùy bạn chỉnh, max_dim = 20
-    benchmark = DimensionalityBenchmark(runs=10, max_iter=100, max_dim=20, tolerance=1e-4)
+    benchmark = DimensionalityBenchmark(runs=5, max_iter=1000, max_dim=20, tolerance=0.1)
     benchmark.run()
