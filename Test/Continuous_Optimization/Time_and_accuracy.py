@@ -188,7 +188,7 @@ class DimensionalityBenchmark:
                     # Execute all 30 runs for this dimension in parallel (limit to half cores to prevent lockup)
                     print(f"      Dim {dim}: ", end="", flush=True)
                     dim_start_time = time.time()
-                    n_workers = max(1, os.cpu_count() // 2)
+                    n_workers = max(1, os.cpu_count() // 4)
                     results = Parallel(n_jobs=n_workers)(delayed(_run_single_execution)() for _ in range(self.runs))
                     dim_time_taken = time.time() - dim_start_time
                     mins, secs = divmod(dim_time_taken, 60)

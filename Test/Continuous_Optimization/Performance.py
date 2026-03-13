@@ -188,7 +188,7 @@ class ContinuousBenchmark:
                     return score, end_t - start_t
 
                 # Run parallelly using half the available CPU cores to prevent 100% lockups
-                n_workers = max(1, os.cpu_count() // 2)
+                n_workers = max(1, os.cpu_count() // 4)
                 results = Parallel(n_jobs=n_workers)(delayed(_run_single_execution)() for _ in range(self.runs))
                 
                 # Unpack parallel results
