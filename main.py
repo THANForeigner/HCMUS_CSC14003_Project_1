@@ -76,19 +76,35 @@ def run_continuous_optimization():
     run_benchmark_with_pin("📌 RUNNING CONTINUOUS OPTIMIZATION BENCHMARK...", target_dir)
 
 
-def run_all():
+def run_visualization():
+    target_dir = os.path.join(ROOT_DIR, "visualization")
+    print(f"🎨 RUNNING ALGORITHM VISUALIZATION in {target_dir}...")
+    
+    custom_env = os.environ.copy()
+    if "PYTHONPATH" in custom_env:
+        custom_env["PYTHONPATH"] = f"{ROOT_DIR}{os.pathsep}{custom_env['PYTHONPATH']}"
+    else:
+        custom_env["PYTHONPATH"] = ROOT_DIR
+
+    try:
+        # Run directly without standard output pinning (Rich) to avoid interference with GUI/Animation
+        subprocess.run([sys.executable, "main.py"], cwd=target_dir, env=custom_env)
+    except KeyboardInterrupt:
+        print("\n[Đã dừng Visualization]")
+
+
+def run_all_discrete():
     print("\n" + "*" * 50)
-    print("🚀 RUNNING ALL BENCHMARKS SEQUENTIALLY")
+    print("🚀 RUNNING ALL DISCRETE BENCHMARKS SEQUENTIALLY")
     print("*" * 50)
 
     run_knapsack()
     run_shortest_path()
     run_graph_coloring()
     run_tsp()
-    run_continuous_optimization()
 
     print("\n" + "*" * 50)
-    print("✅ ALL BENCHMARKS COMPLETED")
+    print("✅ ALL DISCRETE BENCHMARKS COMPLETED")
     print("*" * 50)
 
 
@@ -100,7 +116,8 @@ def show_menu():
     print("3. Run Graph Coloring Benchmark")
     print("4. Run Traveling Salesman Benchmark")
     print("5. Run Continuous Optimization Benchmark")
-    print("6. Run All Benchmarks Sequence")
+    print("6. Run All Discrete Benchmarks (1-4)")
+    print("7. Run Algorithm Visualization")
     print("0. Exit")
     print("=" * 50)
 
@@ -111,7 +128,7 @@ def main():
         show_menu()
 
         try:
-            choice = input("Enter your choice (0-6): ").strip()
+            choice = input("Enter your choice (0-7): ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting...")
             sys.exit(0)
@@ -130,12 +147,14 @@ def main():
         elif choice == '5':
             run_continuous_optimization()
         elif choice == '6':
-            run_all()
+            run_all_discrete()
+        elif choice == '7':
+            run_visualization()
         elif choice == '0':
             print("Exiting...")
             sys.exit(0)
         else:
-            print("Invalid choice. Please enter a number between 0 and 6.")
+            print("Invalid choice. Please enter a number between 0 and 7.")
 
         if choice != '0':
             input("\nPress Enter to return to menu...")

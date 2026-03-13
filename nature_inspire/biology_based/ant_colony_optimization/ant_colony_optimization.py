@@ -54,7 +54,7 @@ class ACO:
         best_path = None
         best_cost = float('inf')
 
-        print(f"--- Bắt đầu chạy ACO: {n_ants} kiến, {max_iter} vòng lặp ---")
+        # print(f"--- Bắt đầu chạy ACO: {n_ants} kiến, {max_iter} vòng lặp ---")
 
         for iteration in range(max_iter):
             all_paths = []  # Lưu các đường đi tìm được trong vòng lặp này
@@ -74,8 +74,8 @@ class ACO:
             self._update_pheromone(all_paths)
 
             # (Optional) Print progress
-            if (iteration + 1) % 10 == 0:
-                print(f"Iter {iteration + 1}/{max_iter}, Best Cost so far: {best_cost}")
+            # if (iteration + 1) % 10 == 0:
+                # print(f"Iter {iteration + 1}/{max_iter}, Best Cost so far: {best_cost}")
 
         return best_path, best_cost
 

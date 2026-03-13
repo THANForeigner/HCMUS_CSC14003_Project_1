@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import sys
+import signal
 import time
 import tracemalloc
 from dataclasses import dataclass
@@ -25,13 +26,26 @@ except ImportError:
     print("Warning: matplotlib not found. Plotting disabled.")
 
 try:
-    from nature_inspire.problem import algo_config
+    from problems.problem import algo_config
 except ImportError:
     algo_config = {}
 
+try:
+    from problems.input_validator import load_graph_cases, GRAPH_DIR
+except ImportError as _e:
+    print(f"Warning: input_validator not found ({_e}).")
+    load_graph_cases = None; GRAPH_DIR = None
+
+# --- TIMEOUT HANDLER ---
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException()
+
 # --- CONFIG ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TESTS_DIR = os.path.join(BASE_DIR, "tests_graph_coloring")
+TESTS_DIR = GRAPH_DIR or os.path.join(BASE_DIR, "tests_graph_coloring")
 PLOT_DIR = os.path.join(BASE_DIR, "plots")
 NUM_CASES = 12  # Adjust based on actual number of tests available or desired
 SAVE_PLOTS = True and MATPLOTLIB_AVAILABLE
@@ -109,22 +123,18 @@ def is_valid_coloring(adj: List[List[int]], colors: List[int], n: int) -> bool:
 
 def run_dfs_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, List[int]]]:
     adj = build_adj_list(n, edges)
-    # Check max degree for upper bound if needed, but we start low.
     for k in range(1, n + 1):
         solver = DFS_GraphColoring(adj, n, k)
         res = solver.solve()
         if res:
-            # res is colors array (size n+1)
             return k, res
     return None
 
 def run_aco_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, List[int]]]:
     adj_dict = build_adj_dict(n, edges)
-    # Params tuned for speed vs quality
     config = algo_config.get("ACO", {})
     n_ants = config.get("n_ants", 10)
     max_iter = config.get("max_iter", 30)
-
     solver = ACO_GraphColoring(adj_dict, n, max_iter=max_iter, n_ants=n_ants)
     try:
         num_colors, colors_list = solver.run()
@@ -134,36 +144,28 @@ def run_aco_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int,
         return None
 
 def run_ga_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, List[int]]]:
-    # GA needs adj matrix
     adj_matrix = np.zeros((n, n), dtype=int)
     for u, v in edges:
         adj_matrix[u-1][v-1] = 1
         adj_matrix[v-1][u-1] = 1
-        
+
     config = algo_config.get("GA", {})
     pop_size = config.get("population_size", 50)
     max_iter = config.get("max_iter", 100)
     mutation_rate = config.get("mutation_rate", 0.1)
-
-    # We need to find the chromatic number k, but usually GA is given a fixed k.
-    # We can try to find the smallest k like DFS does, but that's slow.
-    # For benchmark, let's use a heuristic upper bound or just start from a reasonable K.
-    # To be consistent with the benchmark's goal of comparing performance for a valid coloring:
+    crossover_rate = config.get("crossover_rate", 0.8)
+    elite_size = config.get("elite_size", 2)
     for k in range(1, n + 1):
         solver = GA_GraphColoring(
-            adj_matrix=adj_matrix, 
-            num_colors=k, 
-            pop_size=pop_size, 
-            generations=max_iter, 
-            mutation_rate=mutation_rate
+            adj_matrix=adj_matrix, num_colors=k,
+            pop_size=pop_size, generations=max_iter,
+            mutation_rate=mutation_rate,
+            crossover_rate=crossover_rate,
+            elite_size=elite_size
         )
         try:
             (best_ind, best_fitness), history = solver.run()
             if best_fitness == 0:
-                # GA uses 0-indexed colors internally, benchmark expects 1-indexed (or 0-indexed but let's see)
-                # Actually is_valid_coloring handles it.
-                # Let's return colors shifted to 1..k if needed, but GA_GraphColoring uses 0..k-1
-                # is_valid_coloring expects 1-indexed colors if len(colors) == n
                 return k, [c + 1 for c in best_ind]
         except Exception as e:
             print(f"GA Error at K={k}: {e}")
@@ -171,27 +173,16 @@ def run_ga_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, 
     return None
 
 def run_sa_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, List[int]]]:
-    # SA expects 0-indexed edges internally for graph_energy?
-    # No, SA_GraphColoring.get_graph_energy uses colored_graph[u] == colored_graph[v]
-    # In initial_solution: return [random.randrange(self.max_colors) for _ in range(self.max_n)]
-    # So it expects max_n to be the number of nodes, and nodes to be 0..max_n-1
-    # Our edges are 1-indexed. Let's convert them.
-    zero_indexed_edges = [(u-1, v-1) for u, v in edges]
-    
-    config = algo_config.get("SA", {})
-    # Using user requested defaults where applicable, else defaults from implementation
-    T = config.get("T", 100)
-    alpha = config.get("alpha", 0.95)
-    stopping_T = config.get("stopping_T", 0.001)
+    n_sa, zero_indexed_edges = n, [(u-1, v-1) for u, v in edges]
 
-    for k in range(1, n + 1):
+    config = algo_config.get("SA", {})
+    T = config.get("initial_temp", 100.0)
+    alpha = config.get("alpha", 0.95)
+    stopping_T = config.get("final_temp", 0.001)
+    for k in range(1, n_sa + 1):
         solver = SA_GraphColoring(
-            max_colors=k, 
-            max_vertices=n, 
-            edges=zero_indexed_edges, 
-            T=T, 
-            alpha=alpha, 
-            stopping_T=stopping_T
+            max_colors=k, max_vertices=n_sa, edges=zero_indexed_edges,
+            T=T, alpha=alpha, stopping_T=stopping_T
         )
         try:
             solver.run(times=10)
@@ -213,19 +204,28 @@ class GraphColoringBenchmark:
 
     def bench_series(self, name: str, runner: Callable[[int, List[Tuple[int, int]]], Any]) -> AlgoSeries:
         recs: List[Record] = []
-        for i in range(1, self.num_cases + 1):
-            in_path = os.path.join(self.tests_dir, f"{i}.txt")
-            ans_path = os.path.join(self.tests_dir, f"{i}.ans")
-            
-            if not os.path.exists(in_path):
-                continue
+        cases = load_graph_cases(tests_dir=self.tests_dir, num=self.num_cases) if load_graph_cases else []
+        for case in cases:
+            i, n, edges, expected_k = case
             print(f"  Running Test {i} ({name})...", end="", flush=True)
-            
-            n, edges = load_case(in_path)
-            expected_k = load_ans(ans_path)
             tracemalloc.start()
             start_time = time.perf_counter()
-            result = runner(n, edges)
+            result = None
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(60)
+            
+            try:
+                result = runner(n, edges)
+                signal.alarm(0)  # Disable alarm
+            except TimeoutException:
+                print(f" -> TIMEOUT (1 min)!", end="")
+                result = None
+            except Exception as e:
+                print(f" -> ERROR: {e}", end="")
+                result = None
+            finally:
+                signal.alarm(0)
+
             dt = time.perf_counter() - start_time
             _, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
@@ -303,6 +303,22 @@ class GraphColoringBenchmark:
 
     def run(self):
         print(f"Starting Graph Coloring Benchmark (Cases 1-{self.num_cases})...")
+        
+        # --- WARM-UP: run each algorithm on a trivial graph to preload libraries/JIT ---
+        print("Warming up algorithms (eliminating cold start)...", end="", flush=True)
+        _dummy_n = 2
+        _dummy_edges = [(1, 2)]
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            try: run_dfs_wrapper(_dummy_n, _dummy_edges)
+            except Exception: pass
+            try: run_aco_wrapper(_dummy_n, _dummy_edges)
+            except Exception: pass
+            try: run_ga_wrapper(_dummy_n, _dummy_edges)
+            except Exception: pass
+            try: run_sa_wrapper(_dummy_n, _dummy_edges)
+            except Exception: pass
+        print(" Done.")
         
         # Run DFS
         print("\n--- Benchmarking DFS ---")

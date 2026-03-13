@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import sys
+import signal
 import time
 import tracemalloc
 from dataclasses import dataclass
@@ -42,13 +43,26 @@ except ImportError:
     print("Warning: matplotlib not found. Plotting disabled.")
 
 try:
-    from nature_inspire.problem import algo_config
+    from problems.problem import algo_config
 except ImportError:
     algo_config = {}
 
+try:
+    from problems.input_validator import load_knapsack_cases, KNAPSACK_DIR
+except ImportError as _e:
+    print(f"Warning: input_validator not found ({_e}).")
+    load_knapsack_cases = None; KNAPSACK_DIR = None
+
+# --- TIMEOUT HANDLER ---
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException()
+
 # --- CONFIG ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TESTS_DIR = os.path.join(BASE_DIR, "tests_knapsack")
+TESTS_DIR = KNAPSACK_DIR or os.path.join(BASE_DIR, "tests_knapsack")
 PLOT_DIR = os.path.join(BASE_DIR, "plots")
 # Limit cases if needed, A* is exponential
 NUM_CASES = 15
@@ -105,8 +119,6 @@ def load_ans(path: str) -> Optional[float]:
 
 # --- ALGO WRAPPER ---
 def run_astar_wrapper(capacity: int, weights: List[int], values: List[int]) -> Optional[Tuple[float, List[int]]]:
-    # Check constraint before running? A* might blow up on huge N
-    # Knapsack A* can handle N=40-50 sometimes depending on data
     solver = AStarKnapsack(capacity, weights, values)
     try:
         max_val, selection = solver.run()
@@ -116,11 +128,9 @@ def run_astar_wrapper(capacity: int, weights: List[int], values: List[int]) -> O
         return None
 
 def run_ga_wrapper(capacity: int, weights: List[int], values: List[int]) -> Optional[Tuple[float, List[int]]]:
-    # GA Wrapper
     if GeneticAlgorithmKnapsack is None:
         return None
         
-    # Initialize with params from algo_config if available
     ga_config = algo_config.get("GA", {})
     pop_size = ga_config.get("population_size", 50)
     generations = ga_config.get("max_iter", 100)
@@ -137,17 +147,8 @@ def run_ga_wrapper(capacity: int, weights: List[int], values: List[int]) -> Opti
             generations=generations,
             mutation_rate=mutation_rate
         )
-        best_ind, best_fitness = solver.run()
-        # best_ind is the individual (list of 0/1), best_fitness is the value
-        # Make sure best_fitness corresponds to value. In GA implementation:
-        # returns self.population[0], history
-        # population[0] is (individual, fitness)
-        
-        # Checking GA implementation again from memory/view_file...
-        # view_file says: return self.population[0], history
-        # self.population is list of (ind, fitness)
-        # so solver.run() returns ((ind, fitness), history)
-        
+        # GA.run() returns (best_individual_tuple, history)
+        # best_individual_tuple = (ind, fitness)
         (ind, fitness), history = solver.run()
         return fitness, ind
     except Exception as e:
@@ -159,9 +160,9 @@ def run_abc_wrapper(capacity: int, weights: List[int], values: List[int]) -> Opt
         return None
     
     n = len(weights)
-    # Default params if not in algo_config
     abc_config = algo_config.get("ABC", {})
-    swarm_size = abc_config.get("swarm_size", 40)
+    # Correct key is 'n_bees', not 'swarm_size'
+    swarm_size = abc_config.get("n_bees", 40)
     max_iter = abc_config.get("max_iter", 100)
     limit = abc_config.get("limit", 20)
     
@@ -176,7 +177,6 @@ def run_abc_wrapper(capacity: int, weights: List[int], values: List[int]) -> Opt
             max_iteration=max_iter
         )
         solver.run()
-        # best_bee is a Bee object, best_bee.coords is np.array, best_bee.fitness is value
         return solver.best_bee.fitness, solver.best_bee.coords.tolist()
     except Exception as e:
         print(f"ABC Error: {e}")
@@ -193,44 +193,38 @@ class KnapsackBenchmark:
 
     def bench_series(self, name: str, runner: Callable[[int, List[int], List[int]], Any]) -> AlgoSeries:
         recs: List[Record] = []
-        
-        try:
-            files = [f for f in os.listdir(self.tests_dir) if f.endswith('.txt')]
-            files_map = {}
-            for f in files:
-                try:
-                    num = int(os.path.splitext(f)[0])
-                    files_map[num] = f
-                except ValueError:
-                    pass
-            
-            sorted_nums = sorted(files_map.keys())
-            test_ids = [n for n in sorted_nums if n <= self.num_cases]
-        except FileNotFoundError:
-            print(f"Tests directory not found: {self.tests_dir}")
-            return AlgoSeries(name, [])
 
-        for i in test_ids:
-            in_path = os.path.join(self.tests_dir, f"{i}.txt")
-            ans_path = os.path.join(self.tests_dir, f"{i}.ans")
-            
-            # Check if files exist
-            if not os.path.exists(in_path):
-                continue
+        # Dùng load_knapsack_cases() từ input_validator thay vì tự load
+        if load_knapsack_cases:
+            cases = load_knapsack_cases(tests_dir=self.tests_dir, num=self.num_cases)
+        else:
+            cases = []  # Fallback: không có loader
 
+        for case in cases:
+            i, capacity, weights, values, expected_val = case
+            n = len(weights)
             print(f"  Running Test {i} ({name})...", end="", flush=True)
-            
-            n, capacity, weights, values = load_case(in_path)
-            if n == 0:
-                 print(" -> Empty/Invalid input")
-                 continue
-                 
-            expected_val = load_ans(ans_path)
             
             tracemalloc.start()
             start_time = time.perf_counter()
             
-            result = runner(capacity, weights, values)
+            result = None
+            
+            # Setup timeout
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(60)  # 1 minute timeout
+            
+            try:
+                result = runner(capacity, weights, values)
+                signal.alarm(0)  # Disable alarm
+            except TimeoutException:
+                print(f" -> TIMEOUT (1 min)!", end="")
+                result = None
+            except Exception as e:
+                print(f" -> ERROR: {e}", end="")
+                result = None
+            finally:
+                signal.alarm(0)
             
             dt = time.perf_counter() - start_time
             _, peak = tracemalloc.get_traced_memory()
@@ -318,6 +312,19 @@ class KnapsackBenchmark:
     def run(self):
         print(f"Starting Knapsack Benchmark...")
         print(f"Test Directory: {self.tests_dir}")
+        
+        # --- WARM-UP: run each algorithm on a trivial input to preload libraries/JIT ---
+        print("Warming up algorithms (eliminating cold start)...", end="", flush=True)
+        import contextlib, io
+        _dummy_cap, _dummy_w, _dummy_v = 10, [2, 3], [4, 5]
+        with contextlib.redirect_stdout(io.StringIO()):
+            try: run_astar_wrapper(_dummy_cap, _dummy_w, _dummy_v)
+            except Exception: pass
+            try: run_ga_wrapper(_dummy_cap, _dummy_w, _dummy_v)
+            except Exception: pass
+            try: run_abc_wrapper(_dummy_cap, _dummy_w, _dummy_v)
+            except Exception: pass
+        print(" Done.")
         
         # Run A*
         print("\n--- Benchmarking A* ---")

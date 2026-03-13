@@ -28,10 +28,15 @@ from nature_inspire.biology_based.firefly_algorithm.firefly_algorithm import FA
 from nature_inspire.biology_based.cuckoo_search.cuckoo_search import CS
 from nature_inspire.human_based.teaching_learning_based_optimization.teaching_learning_based_optimization import TLBO
 from problems.problem import get_problem, algo_config
+try:
+    from problems.input_validator import CONT_FUNCS, CONT_RUNS
+except ImportError:
+    CONT_FUNCS = ["sphere", "rastrigin", "rosenbrock", "griewank", "ackley"]
+    CONT_RUNS = 10
 
 
 class ContinuousBenchmark:
-    def __init__(self, runs=10, max_iter=100, dim=10, suffix=""):
+    def __init__(self, runs=CONT_RUNS, max_iter=100, dim=10, suffix=""):
         self.runs = runs
         self.max_iter = max_iter
         self.dim = dim
@@ -51,7 +56,7 @@ class ContinuousBenchmark:
             "CS": self.run_cs,
             "TLBO": self.run_tlbo
         }
-        self.funcs = ["sphere", "rastrigin", "rosenbrock", "griewank", "ackley"]
+        self.funcs = CONT_FUNCS
 
     def run_hc(self, func_name, func, lb, ub):
         config = algo_config.get("HC", {})

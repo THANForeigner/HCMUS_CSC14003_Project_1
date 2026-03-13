@@ -1,5 +1,7 @@
 from __future__ import annotations
 import os
+import sys
+import signal
 import time
 import tracemalloc
 from dataclasses import dataclass
@@ -23,14 +25,35 @@ except ImportError:
 try:
     from nature_inspire.problem import algo_config
 except ImportError:
-    algo_config = {}
+    try:
+        from problems.problem import algo_config
+    except ImportError:
+        algo_config = {}
+
+try:
+    from problems.input_validator import (
+        load_sp_unweighted_cases, load_sp_weighted_cases,
+        SP_UNWEIGHTED_DIR, SP_WEIGHTED_DIR,
+    )
+except ImportError as _e:
+    print(f"Warning: input_validator not found ({_e}).")
+    load_sp_unweighted_cases = load_sp_weighted_cases = None
+    SP_UNWEIGHTED_DIR = SP_WEIGHTED_DIR = None
+
+# --- TIMEOUT HANDLER ---
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException()
 
 # --- CONFIG ---
-UNWEIGHTED_DIR = "tests_shortest_unweighted"
-WEIGHTED_DIR = "tests_shortest_weighted"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UNWEIGHTED_DIR  = SP_UNWEIGHTED_DIR or os.path.join(BASE_DIR, "tests_shortest_unweighted")
+WEIGHTED_DIR    = SP_WEIGHTED_DIR   or os.path.join(BASE_DIR, "tests_shortest_weighted")
 NUM_CASES = 35
 SAVE_PLOTS = True and MATPLOTLIB_AVAILABLE
-PLOTS_DIR = "plots"
+PLOTS_DIR = os.path.join(BASE_DIR, "plots")
 DPI = 220
 
 
@@ -211,21 +234,28 @@ class ShortestPathBenchmark:
 
     def bench_unweighted_series(self, name: str, algo: UnweightedAlgo) -> AlgoSeries:
         recs: List[Record] = []
-        for i in range(1, self.num_cases + 1):
-            in_path = os.path.join(self.unweighted_dir, f"{i}.txt")
-            ans_path = os.path.join(self.unweighted_dir, f"{i}.ans")
-
-            if not os.path.exists(in_path): continue
-
-            tracemalloc.start()
-            t0 = time.perf_counter()
-
-            n, s, t, edges = load_unweighted_case(in_path)
-            expected = load_ans(ans_path)
+        cases = load_sp_unweighted_cases(tests_dir=self.unweighted_dir, num=self.num_cases) if load_sp_unweighted_cases else []
+        for case in cases:
+            i, n, s, t, edges, expected = case
             exp_len = None if expected is None else expected[0]
             adj = build_adj_unweighted(n, edges)
-
-            got_path = algo(adj, s, t)
+            got_path = None
+            tracemalloc.start()
+            t0 = time.perf_counter()
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(60)
+            
+            try:
+                got_path = algo(adj, s, t)
+                signal.alarm(0)  # Disable alarm
+            except TimeoutException:
+                print(f" -> TIMEOUT (1 min)!", end="")
+                got_path = None
+            except Exception as e:
+                print(f" -> ERROR: {e}", end="")
+                got_path = None
+            finally:
+                signal.alarm(0)
 
             dt = time.perf_counter() - t0
             _, peak = tracemalloc.get_traced_memory()
@@ -248,34 +278,37 @@ class ShortestPathBenchmark:
 
     def bench_weighted_series(self, name: str, algo: WeightedAlgo) -> AlgoSeries:
         recs: List[Record] = []
-
-        for i in range(1, self.num_cases + 1):
-            in_path = os.path.join(self.weighted_dir, f"{i}.txt")
-            ans_path = os.path.join(self.weighted_dir, f"{i}.ans")
-
-            if not os.path.exists(in_path):
-                print(f"File not found: {in_path}")
-                continue
-
-            # Default values for skipped/failed tests
-            dt = None
-            peak_mb = None
-            err = None
-
+        cases = load_sp_weighted_cases(tests_dir=self.weighted_dir, num=self.num_cases) if load_sp_weighted_cases else []
+        for case in cases:
+            i, n, s, t, edges, expected = case
+            exp_cost = None if expected is None else expected[0]
+            dt = peak_mb = err = None
             skip_this_test = False
-
             try:
                 tracemalloc.start()
                 t0 = time.perf_counter()
-
-                # IO + Parse
-                n, s, t, edges = load_weighted_case(in_path)
-                expected = load_ans(ans_path)
-                exp_cost = None if expected is None else expected[0]
                 adjw = build_adj_weighted(n, edges)
 
                 # Build & Run Algo
-                got = algo(adjw, s, t)  # Có thể raise ValueError tại đây
+                got = None
+                
+                # Setup timeout
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(60)  # 1 minute timeout
+                
+                try:
+                    got = algo(adjw, s, t)
+                    signal.alarm(0)  # Disable alarm
+                except TimeoutException:
+                    print(f" -> TIMEOUT (1 min)!", end="")
+                    got = None
+                except Exception as e:
+                    # Reraise ValueError for the existing skip logic
+                    if isinstance(e, ValueError): raise e
+                    print(f" -> ERROR: {e}", end="")
+                    got = None
+                finally:
+                    signal.alarm(0)
 
                 # Stop Timer
                 dt = time.perf_counter() - t0
@@ -378,6 +411,20 @@ class ShortestPathBenchmark:
     def run(self):
         self.ensure_plots_dir()
         all_series: List[AlgoSeries] = []
+
+        # --- WARM-UP: run each algorithm on a trivial graph to preload libraries/JIT ---
+        print("Warming up algorithms (eliminating cold start)...", end="", flush=True)
+        import contextlib, io
+        _adj_uw = [[],[2],[1]]   # 2-node graph: 1 <-> 2
+        _adjw = [[],[(2, 1)],[(1, 1)]]  # weighted version
+        with contextlib.redirect_stdout(io.StringIO()):
+            for algo in get_unweighted_algorithms().values():
+                try: algo(_adj_uw, 1, 2)
+                except Exception: pass
+            for algo in get_weighted_algorithms().values():
+                try: algo(_adjw, 1, 2)
+                except Exception: pass
+        print(" Done.")
 
         # 1. Unweighted
         for name, algo in get_unweighted_algorithms().items():

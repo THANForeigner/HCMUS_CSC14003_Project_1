@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import sys
+import signal
 
 # Ensure project root and necessary module paths are in sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,13 +30,26 @@ except ImportError:
     print("Warning: matplotlib not found. Plotting disabled.")
 
 try:
-    from nature_inspire.problem import algo_config
+    from problems.problem import algo_config
 except ImportError:
     algo_config = {}
 
+try:
+    from problems.input_validator import load_tsp_cases, TSP_DIR
+except ImportError as _e:
+    print(f"Warning: input_validator not found ({_e}).")
+    load_tsp_cases = None; TSP_DIR = None
+
+# --- TIMEOUT HANDLER ---
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException()
+
 # --- CONFIG ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TESTS_DIR = os.path.join(BASE_DIR, "tests_tsp")
+TESTS_DIR = TSP_DIR or os.path.join(BASE_DIR, "tests_tsp")
 PLOT_DIR = os.path.join(BASE_DIR, "plots")
 NUM_CASES = 16 
 SAVE_PLOTS = True and MATPLOTLIB_AVAILABLE
@@ -109,12 +123,11 @@ def calculate_path_cost(path: List[int], matrix: List[List[float]]) -> float:
 # --- ALGO WRAPPERS ---
 # Return type: (cost, path)
 def run_astar_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
-    n = len(points)
+    pts, matrix = points, calculate_distance_matrix(points)
+    n = len(pts)
     if n > 20:
         print(f" [A* Skipped: N={n} too large for Exact Solver]")
         return None
-
-    matrix = calculate_distance_matrix(points)
     solver = AStarTSP(matrix)
     try:
         cost, path = solver.run()
@@ -124,21 +137,19 @@ def run_astar_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float
         return None
 
 def run_ga_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
-    n = len(points)
+    pts, matrix = points, calculate_distance_matrix(points)
+    n = len(pts)
     if n > 200:
         print(f" [GA Skipped: N={n} exceeds benchmark limit]")
         return None
-
-    matrix = calculate_distance_matrix(points)
     config = algo_config.get("GA", {})
     pop_size = config.get("population_size", 100 if n > 50 else 50)
     generations = config.get("max_iter", 200 if n > 50 else 100)
-
     solver = GA_TSP(matrix, pop_size=pop_size, generations=generations)
     try:
         res, history = solver.run()
         path, fitness = res
-        cost = calculate_path_cost(path, matrix)
+        cost = sum(matrix[path[i]][path[(i+1)%n]] for i in range(n))
         return cost, path
     except Exception as e:
         print(f"GA Error: {e}")
@@ -146,16 +157,14 @@ def run_ga_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, L
 
 
 def run_aco_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
-    n = len(points)
+    pts, matrix = points, calculate_distance_matrix(points)
+    n = len(pts)
     if n > 250:
         print(f" [ACO Skipped: N={n} too large for quick benchmark]")
         return None
-
-    matrix = calculate_distance_matrix(points)
     config = algo_config.get("ACO", {})
     n_ants = config.get("n_ants", 20 if n < 100 else 30)
     max_iter = config.get("max_iter", 50 if n < 100 else 100)
-
     solver = ACO_TSP(matrix, n_ants=n_ants, max_iter=max_iter)
     try:
         cost, path = solver.run()
@@ -166,30 +175,34 @@ def run_aco_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, 
 
 
 def run_hill_climbing_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
-    n = len(points)
+    pts, matrix = points, calculate_distance_matrix(points)
+    n = len(pts)
     if n > 300:
         return None
-
-    matrix = calculate_distance_matrix(points)
     config = algo_config.get("HC", {})
     restarts = 20 if n < 50 else 5
-
     solver = HillClimbingTSP(matrix, max_iterations=500, restarts=restarts)
     try:
         cost, path = solver.solve()
         return cost, path
-    except Exception as e:
+    except Exception:
         return None
 
 def run_sa_wrapper(points: List[Tuple[float, float]]) -> Optional[Tuple[float, List[int]]]:
-    n = len(points)
+    pts, matrix = points, calculate_distance_matrix(points)
+    n = len(pts)
     if n > 300:
         return None
+    config = algo_config.get("SA", {})
+    initial_temp = config.get("initial_temp", 100.0)
+    alpha = config.get("alpha", 0.95)
+    stopping_T = config.get("final_temp", 0.001)
 
-    # T=100, stopping_T=0.001, alpha=0.95 from user request
-    solver = SA_TSP(max_vertices=n, coords=points, T=100, stopping_T=0.001, alpha=0.95)
+    solver = SA_TSP(max_vertices=n, coords=points, T=initial_temp, stopping_T=stopping_T, alpha=alpha)
     try:
-        solver.run(times=5) # Run multiple times to improve result
+        # Scale runs with problem size
+        n_times = 5 if n < 100 else 2
+        solver.run(times=n_times)
         return solver.best_solution_result, solver.best_solution_nodes
     except Exception as e:
         print(f"SA Error: {e}")
@@ -229,23 +242,29 @@ class TSPBenchmark:
             print(f"Tests directory not found: {self.tests_dir}")
             return AlgoSeries(name, [])
 
-        for i in test_ids:
-            in_path = os.path.join(self.tests_dir, f"{i}.txt")
-            ans_path = os.path.join(self.tests_dir, f"{i}.ans")
-            
+        cases = load_tsp_cases(tests_dir=self.tests_dir, num=self.num_cases) if load_tsp_cases else []
+        for case in cases:
+            i, points, expected_cost = case
             print(f"  Running Test {i} ({name})...", end="", flush=True)
-            
-            points = load_case(in_path)
-            if not points:
-                 print(" -> Empty/Invalid input")
-                 continue
-                 
-            expected_cost = load_ans(ans_path)
-            
             tracemalloc.start()
             start_time = time.perf_counter()
+            result = None
+            got_cost = None
+            pct_error = 0.0
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(60)
             
-            result = runner(points)
+            try:
+                result = runner(points)
+                signal.alarm(0)  # Disable alarm
+            except TimeoutException:
+                print(f" -> TIMEOUT (1 min)!", end="")
+                result = None
+            except Exception as e:
+                print(f" -> ERROR: {e}", end="")
+                result = None
+            finally:
+                signal.alarm(0)
             
             dt = time.perf_counter() - start_time
             _, peak = tracemalloc.get_traced_memory()
@@ -325,6 +344,23 @@ class TSPBenchmark:
     def run(self):
         print(f"Starting TSP Benchmark...")
         print(f"Test Directory: {self.tests_dir}")
+        
+        # --- WARM-UP: run each algorithm on a trivial input to preload libraries/JIT ---
+        print("Warming up algorithms (eliminating cold start)...", end="", flush=True)
+        import contextlib, io
+        _dummy_pts = [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]  # 3-node triangle
+        with contextlib.redirect_stdout(io.StringIO()):
+            try: run_astar_wrapper(_dummy_pts)
+            except Exception: pass
+            try: run_aco_wrapper(_dummy_pts)
+            except Exception: pass
+            try: run_ga_wrapper(_dummy_pts)
+            except Exception: pass
+            try: run_hill_climbing_wrapper(_dummy_pts)
+            except Exception: pass
+            try: run_sa_wrapper(_dummy_pts)
+            except Exception: pass
+        print(" Done.")
         
         # Run A*
         print("\n--- Benchmarking A* (Small Cases Only) ---")

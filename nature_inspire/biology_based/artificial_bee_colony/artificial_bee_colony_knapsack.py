@@ -1,140 +1,132 @@
 import random
-import math
 import numpy as np
-import copy
 
-class Bee:
-    def __init__(self, items: int, weight: list, cost: list, capacity: int, limit = -1, coords = None):
+class ABC_Knapsack:
+    def __init__(self, items: int, capacity: int, weight: list, cost: list, swarm_size=-1, limit=-1, max_iteration=-1):
+        self.HARD_LIMIT_ITEMS = 10000
+        if items > self.HARD_LIMIT_ITEMS:
+            raise ValueError(f"Knapsack too large for ABC (N={items} > {self.HARD_LIMIT_ITEMS}).")
+
         self.items = items
+        self.capacity = capacity
         self.weight = np.array(weight)
         self.cost = np.array(cost)
-        self.capacity = capacity
-        self.coords = self.randposition() if coords is None else coords
-        self.fitness = self.getfitness(self.coords)
-        self.trial = 0
-        self.limit = 3 if limit == -1 else limit
-    
-    def randposition(self):
-        return np.random.randint(2, size=self.items)
-    
-    def getfitness(self, coords):
-        #if the weight is higher than the capacity, give up that solution by give fitness 0
-        total_weight = np.sum(coords * self.weight)
-        total_cost = np.sum(coords * self.cost)
-        if total_weight > self.capacity:
-            return 0
-        return total_cost
-    
-    def _explore(self, partner_coords):
         
-        #Change one dimension to make a variation
-        #Then apply the search equation for the bees
-        new_coords = self.coords.copy()
-        j = random.randint(0, self.items - 1)
-        phi = random.uniform(-1, 1)
-        velocity = self.coords[j] + phi * (self.coords[j] - partner_coords[j])
-        prob = 1 / (1 + math.exp(-velocity))
-        if random.random() < prob:
-            new_coords[j] = 1
-        else:
-            new_coords[j] = 0
-        new_fitness = self.getfitness(new_coords)    
-        if self.fitness < new_fitness:
-            self.fitness = new_fitness
-            self.coords = new_coords
-            self.trial = 0
-            return True
-        else:
-            self.trial += 1 
-            return False
-    
-    def reset(self):
-        self.coords = self.randposition()
-        self.fitness = self.getfitness(self.coords)
-        self.trial = 0
-        
-class EmployeeBee (Bee):
-    def explore(self, partner_bee):
-        self._explore(partner_bee.coords)
-    
-class OnlookerBee (Bee):
-    def explore(self, selected_bee, partner_bee):
-        #Onlooker bees observe employed bees to make decision for the food sources
-        self.coords = selected_bee.coords.copy()
-        self.fitness = selected_bee.fitness
-        self.trial = selected_bee.trial 
-        is_improved = self._explore(partner_bee.coords)
-        if is_improved:
-            selected_bee.coords = self.coords.copy()
-            selected_bee.fitness = self.fitness
-        selected_bee.trial = self.trial
-        
-class ABC_Knapsack:
-    def __init__ (self, items: int, capacity: int, weight: list, cost: list, swarm_size = -1, limit = -1, max_iteration = -1):
-        self.items = items
-        self.capacity = capacity
-        self.weight = weight
-        self.cost = cost
-        self.decision = [0 for i in range (0, self.items)]
         self.swarm_size = 100 if swarm_size == -1 else swarm_size
         self.food_size = int(self.swarm_size / 2)
-        self.trial_limit = limit
-        self.iter = 0
+        self.trial_limit = 3 if limit == -1 else limit
         self.max_iter = max_iteration
         
-        # Initiate food sources and employed bees at the food sources
-        self.employee_bees = [
-            EmployeeBee(self.items, self.weight, self.cost, self.capacity, self.trial_limit)
-            for _ in range (0, self.food_size)
-        ]
+        # 1. Khởi tạo Food Sources (Binary Matrix)
+        self.food_sources = np.random.randint(2, size=(self.food_size, self.items))
+        self.fitness = self.calculate_fitness(self.food_sources)
+        self.trials = np.zeros(self.food_size)
         
-        # Initiate onlooker bees
-        self.onlooker_bees = [
-            OnlookerBee(self.items, self.weight, self.cost, self.capacity, self.trial_limit)
-            for _ in range(self.food_size)
-        ]
+        # 2. Theo dõi Best
+        best_idx = np.argmax(self.fitness)
+        self.best_fitness = self.fitness[best_idx]
+        self.best_source = self.food_sources[best_idx].copy()
         
-        # Find the best food source in the initial population
-        initial_best = max(self.employee_bees, key=lambda bee: bee.fitness)
-        self.best_bee = copy.deepcopy(initial_best)
-        self.fitness_history = []
-        
-    def run(self):
-        while self.iter < self.max_iter:
-            
-            # 1. EMPLOYED BEE PHASE
-            # Every employed bee explores near its current food source
-            for i,bee in enumerate(self.employee_bees):
-                candidates = [b for idx, b in enumerate(self.employee_bees) if idx != i]
-                partner = random.choice(candidates)
-                bee.explore(partner)
+        # Duck-typing for compatibility with main.py
+        class BestBee:
+            def __init__(self, coords, fitness):
+                self.coords = coords
+                self.fitness = fitness
+        self.best_bee = BestBee(self.best_source, self.best_fitness)
 
-            # Calculate probabilities for Roulette Wheel Selection
-            overall_fitness = sum(bee.fitness for bee in self.employee_bees)
-            if overall_fitness == 0:
-                probs = [1.0 / self.food_size] * self.food_size
-            else:
-                probs = [bee.fitness/overall_fitness for bee in self.employee_bees]
+    def calculate_fitness(self, pop):
+        # pop shape: (N, items) or (items,)
+        if pop.ndim == 1:
+            total_weight = np.sum(pop * self.weight)
+            total_cost = np.sum(pop * self.cost)
+            return total_cost if total_weight <= self.capacity else 0
+        
+        total_weights = np.dot(pop, self.weight)
+        total_costs = np.dot(pop, self.cost)
+        
+        # Nếu vượt quá capacity, fitness = 0
+        fitness = np.where(total_weights <= self.capacity, total_costs, 0)
+        return fitness
+
+    def run(self):
+        for _ in range(self.max_iter):
+            # 1. EMPLOYED BEE PHASE
+            # Vectorized exploration for all food sources
+            partners_idx = np.array([random.choice([idx for idx in range(self.food_size) if idx != i]) for i in range(self.food_size)])
+            partners = self.food_sources[partners_idx]
             
-            # Select food sources based on their fitness weights
-            selected_sources = random.choices(range(self.food_size), weights=probs, k=self.food_size)
+            j = np.random.randint(0, self.items, self.food_size)
+            phi = np.random.uniform(-1, 1, self.food_size)
             
+            # Binary ABC exploration using Sigmoid
+            curr_vals = self.food_sources[np.arange(self.food_size), j]
+            part_vals = partners[np.arange(self.food_size), j]
+            velocities = curr_vals + phi * (curr_vals - part_vals)
+            probs = 1.0 / (1.0 + np.exp(-velocities))
+            
+            new_sources = self.food_sources.copy()
+            new_bits = (np.random.random(self.food_size) < probs).astype(int)
+            new_sources[np.arange(self.food_size), j] = new_bits
+            
+            new_fitness = self.calculate_fitness(new_sources)
+            
+            # Greedy selection
+            improved = new_fitness > self.fitness
+            self.food_sources[improved] = new_sources[improved]
+            self.fitness[improved] = new_fitness[improved]
+            self.trials[improved] = 0
+            self.trials[~improved] += 1
+
             # 2. ONLOOKER BEE PHASE
-            # Onlookers are deployed to the selected sources
-            for onlooker, idx in zip(self.onlooker_bees, selected_sources):
-                selected_bee = self.employee_bees[idx]
-                candidates = [b for i, b in enumerate(self.employee_bees) if i != idx]
-                partner_bee = random.choice(candidates)
-                onlooker.explore(selected_bee, partner_bee)
+            sum_fit = np.sum(self.fitness)
+            if sum_fit == 0:
+                prob_onlooker = np.ones(self.food_size) / self.food_size
+            else:
+                prob_onlooker = self.fitness / sum_fit
             
+            # Select which food sources onlooker bees will visit
+            selected_indices = np.random.choice(self.food_size, size=self.food_size, p=prob_onlooker)
+            selected_sources = self.food_sources[selected_indices]
+            
+            # Select partners for selected sources
+            onlooker_partners_idx = np.array([random.choice([idx for idx in range(self.food_size) if idx != s_idx]) for s_idx in selected_indices])
+            onlooker_partners = self.food_sources[onlooker_partners_idx]
+            
+            j_on = np.random.randint(0, self.items, self.food_size)
+            phi_on = np.random.uniform(-1, 1, self.food_size)
+            
+            on_curr_vals = selected_sources[np.arange(self.food_size), j_on]
+            on_part_vals = onlooker_partners[np.arange(self.food_size), j_on]
+            on_velocities = on_curr_vals + phi_on * (on_curr_vals - on_part_vals)
+            on_probs = 1.0 / (1.0 + np.exp(-on_velocities))
+            
+            new_onlooker_sources = selected_sources.copy()
+            new_on_bits = (np.random.random(self.food_size) < on_probs).astype(int)
+            new_onlooker_sources[np.arange(self.food_size), j_on] = new_on_bits
+            
+            new_on_fitness = self.calculate_fitness(new_onlooker_sources)
+            
+            # Update the ORIGINAL food sources based on onlooker success
+            for i, s_idx in enumerate(selected_indices):
+                if new_on_fitness[i] > self.fitness[s_idx]:
+                    self.food_sources[s_idx] = new_onlooker_sources[i]
+                    self.fitness[s_idx] = new_on_fitness[i]
+                    self.trials[s_idx] = 0
+                else:
+                    self.trials[s_idx] += 1
+
             # 3. SCOUT BEE PHASE
-            # Abandon food sources that have exceeded the trial limit
-            for bee in self.employee_bees:
-                if bee.trial > self.trial_limit:
-                    bee.reset()
-                    
-            current_best_bee = max(self.employee_bees, key=lambda bee:bee.fitness)
-            if current_best_bee.fitness > self.best_bee.fitness:
-                self.best_bee = copy.deepcopy(current_best_bee)    
-            
-            self.iter += 1
+            abandoned = self.trials > self.trial_limit
+            num_abandoned = np.sum(abandoned)
+            if num_abandoned > 0:
+                self.food_sources[abandoned] = np.random.randint(2, size=(num_abandoned, self.items))
+                self.fitness[abandoned] = self.calculate_fitness(self.food_sources[abandoned])
+                self.trials[abandoned] = 0
+
+            # Update Global Best
+            best_idx = np.argmax(self.fitness)
+            if self.fitness[best_idx] > self.best_fitness:
+                self.best_fitness = self.fitness[best_idx]
+                self.best_source = self.food_sources[best_idx].copy()
+                self.best_bee.coords = self.best_source
+                self.best_bee.fitness = self.best_fitness
