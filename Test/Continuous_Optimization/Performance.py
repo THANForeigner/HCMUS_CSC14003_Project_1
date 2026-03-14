@@ -233,7 +233,7 @@ class ContinuousBenchmark:
 
         plt.figure(figsize=(10, 6))
         plt.boxplot(data, tick_labels=labels, patch_artist=True)
-        plt.title(f"Performance on {func_name.capitalize()} Function ({self.dim}D, {self.runs} runs)")
+        plt.title(f"Continuous Optimization Problem - {func_name.capitalize()} Function ({self.dim}D, {self.runs} runs)")
         plt.ylabel("Fitness Value (Lower is Better)")
         plt.yscale("log")  # Useful for continuous optimization showing variation of magnitudes
         plt.grid(True, axis='y', linestyle='--', alpha=0.7)

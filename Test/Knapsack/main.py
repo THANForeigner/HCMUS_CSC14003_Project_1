@@ -164,6 +164,10 @@ def run_abc_wrapper(capacity: int, weights: List[int], values: List[int]) -> Opt
     # Correct key is 'n_bees', not 'swarm_size'
     swarm_size = abc_config.get("n_bees", 40)
     max_iter = abc_config.get("max_iter", 100)
+    
+    # Scale max_iteration for discrete ABC to ensure it runs more than 0 seconds on large tests
+    max_iter = max(max_iter, n * 10)
+    
     limit = abc_config.get("limit", 20)
     
     try:
@@ -280,7 +284,7 @@ class KnapsackBenchmark:
             times = [r.time_sec for r in s.records if r.time_sec is not None]
             ax1.plot(ids, times, marker="o", label=s.name)
         
-        ax1.set_title("Knapsack Execution Time (s)")
+        ax1.set_title("Knapsack Problem - Execution Time (s)")
         ax1.set_xlabel("Test Case ID")
         ax1.set_ylabel("Time (s)")
         ax1.legend()
@@ -297,7 +301,7 @@ class KnapsackBenchmark:
                 has_error_data = True
                 
         if has_error_data:
-            ax2.set_title("Knapsack % Error (Lower is Better)")
+            ax2.set_title("Knapsack Problem - % Error (Lower is Better)")
             ax2.set_xlabel("Test Case ID")
             ax2.set_ylabel("% Error")
             ax2.legend()

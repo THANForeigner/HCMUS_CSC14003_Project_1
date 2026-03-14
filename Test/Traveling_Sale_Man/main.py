@@ -310,7 +310,7 @@ class TSPBenchmark:
             times = [r.time_sec for r in s.records if r.time_sec is not None]
             plt.plot(ids, times, marker="o", label=s.name)
         
-        plt.title("TSP Execution Time (s)")
+        plt.title("Traveling Salesman Problem (TSP) - Execution Time (s)")
         plt.xlabel("Test Case ID")
         plt.ylabel("Time (s)")
         plt.legend()
@@ -333,7 +333,7 @@ class TSPBenchmark:
             if ids:
                 plt.plot(ids, exp, "k--", label="Optimal (DP)")
 
-        plt.title("TSP Path Cost")
+        plt.title("Traveling Salesman Problem (TSP) - Path Cost")
         plt.xlabel("Test Case ID")
         plt.ylabel("Cost")
         plt.legend()

@@ -139,6 +139,8 @@ def run_aco_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int,
     try:
         num_colors, colors_list = solver.run()
         return num_colors, colors_list
+    except TimeoutException:
+        raise
     except Exception as e:
         print(f"ACO Error: {e}")
         return None
@@ -159,14 +161,14 @@ def run_ga_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, 
         solver = GA_GraphColoring(
             adj_matrix=adj_matrix, num_colors=k,
             pop_size=pop_size, generations=max_iter,
-            mutation_rate=mutation_rate,
-            crossover_rate=crossover_rate,
-            elite_size=elite_size
+            mutation_rate=mutation_rate
         )
         try:
             (best_ind, best_fitness), history = solver.run()
             if best_fitness == 0:
                 return k, [c + 1 for c in best_ind]
+        except TimeoutException:
+            raise
         except Exception as e:
             print(f"GA Error at K={k}: {e}")
             continue
@@ -188,6 +190,8 @@ def run_sa_wrapper(n: int, edges: List[Tuple[int, int]]) -> Optional[Tuple[int, 
             solver.run(times=10)
             if solver.best_energy == 0:
                 return k, [c + 1 for c in solver.best_solution]
+        except TimeoutException:
+            raise
         except Exception as e:
             print(f"SA Error at K={k}: {e}")
             continue
@@ -245,7 +249,7 @@ class GraphColoringBenchmark:
                     got_k = None # Mark as failed
                 else:
                     if expected_k:
-                        pct_error = (got_k - expected_k) / expected_k * 100.0
+                        pct_error = abs(got_k - expected_k) / expected_k * 100.0
                     else:
                         pct_error = 0.0
             else:
@@ -267,16 +271,21 @@ class GraphColoringBenchmark:
         fig, (ax_time, ax_mem) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
         for s in series_list:
             ids = [r.test_id for r in s.records]
-            times = [r.time_sec for r in s.records]
+            times = [max(1e-6, r.time_sec) if r.time_sec is not None else 1e-6 for r in s.records]
             mems = [r.peak_mem_mb for r in s.records]
-            ax_time.plot(ids, times, marker="o", label=s.name)
-            ax_mem.plot(ids, mems, marker="x", label=s.name)
+            if s.name == "DFS":
+                ax_time.plot(ids, times, marker="o", linestyle="dashed", alpha=1.0, zorder=10, linewidth=2.5, label=s.name)
+                ax_mem.plot(ids, mems, marker="x", linestyle="dashed", alpha=1.0, zorder=10, linewidth=2.5, label=s.name)
+            else:
+                ax_time.plot(ids, times, marker="o", linestyle="dashed", alpha=0.7, label=s.name)
+                ax_mem.plot(ids, mems, marker="x", linestyle="dashed", alpha=0.7, label=s.name)
             
-        ax_time.set_title("Execution Time (s)")
+        ax_time.set_title("Graph Coloring Problem - Execution Time (s)")
         ax_time.set_ylabel("Seconds")
+        ax_time.set_yscale("log")
         ax_time.legend()
         
-        ax_mem.set_title("Peak Memory (MB)")
+        ax_mem.set_title("Graph Coloring Problem - Peak Memory (MB)")
         ax_mem.set_ylabel("MB")
         ax_mem.legend()
         ax_mem.set_xlabel("Test Case ID")
@@ -291,9 +300,12 @@ class GraphColoringBenchmark:
             for s in series_list:
                 ids = [r.test_id for r in s.records]
                 errs = [r.pct_error for r in s.records]
-                plt.plot(ids, errs, marker="o", label=s.name)
+                if s.name == "DFS":
+                    plt.plot(ids, errs, marker="o", linestyle="solid", alpha=1.0, linewidth=2.5, zorder=10, label=s.name)
+                else:
+                    plt.plot(ids, errs, marker="o", linestyle="dashed", alpha=0.7, label=s.name)
                 
-        plt.title("Error % relative to Optimal/Expected K")
+        plt.title("Graph Coloring Problem - Error % relative to Optimal/Expected K")
         plt.ylabel("% Error (Lower is Better)")
         plt.xlabel("Test Case ID")
         plt.legend()

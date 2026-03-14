@@ -7,6 +7,12 @@ import tracemalloc
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple, Any
 
+# Ensure project root and necessary module paths are in sys.path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
 # --- IMPORTS ---
 from classical.uninformed.breath_first_search_shortest_path import BFS
 from classical.uninformed.depth_first_search_shortest_path import DFS
@@ -110,7 +116,6 @@ def build_adj_unweighted(n: int, edges: List[Tuple[int, int]]) -> List[List[int]
     adj = [[] for _ in range(n + 1)]
     for u, v in edges:
         adj[u].append(v)
-        adj[v].append(u)
     return adj
 
 
@@ -118,7 +123,6 @@ def build_adj_weighted(n: int, edges: List[Tuple[int, int, int]]) -> List[List[T
     adj = [[] for _ in range(n + 1)]
     for u, v, w in edges:
         adj[u].append((v, w))
-        adj[v].append((u, w))
     return adj
 
 
@@ -164,7 +168,9 @@ def percent_error(expected: Optional[int], got: Optional[int], expected_is_impos
         return 100.0
     if expected == 0:
         return 0.0 if got == 0 else 100.0
-    return abs(got - expected) / abs(expected) * 100.0
+    
+    # Calculate difference exactly:
+    return abs(got - expected) / max(1, abs(expected)) * 100.0
 
 
 # --- ALGO WRAPPERS ---
@@ -266,6 +272,7 @@ class ShortestPathBenchmark:
 
             got_len: Optional[int] = None
             if got_path is not None and is_valid_path_unweighted(adj, got_path, s, t):
+                # The expected length in ans file is the number of nodes in the path
                 got_len = len(got_path)
             else:
                 if got_path is not None: got_impossible = True
@@ -375,13 +382,30 @@ class ShortestPathBenchmark:
             # Matplotlib tự động bỏ qua các giá trị None (làm đứt nét vẽ)
             times = [r.time_sec for r in s.records]
             mems = [r.peak_mem_mb for r in s.records]
-
-            ax_time.plot(xs, times, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
-            ax_mem.plot(xs, mems, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
+            
+            # Draw valid points (time_sec is not None)
+            valid_xs = [x for x, t in zip(xs, times) if t is not None]
+            valid_times = [max(1e-6, t) for t in times if t is not None]
+            valid_mems = [m for m in mems if m is not None]
+            
+            # Plot DFS/UCS with high zorder
+            if s.name in ("DFS", "BFS", "UCS"):
+                lines = ax_time.plot(valid_xs, valid_times, marker="o", linewidth=2.5, zorder=10, linestyle="dashed", alpha=1.0, label=f"{s.algo_type}:{s.name}")
+                line_color = lines[0].get_color()
+                ax_mem.plot(valid_xs, valid_mems, marker="o", linewidth=2.5, zorder=10, color=line_color, linestyle="dashed", alpha=1.0, label=f"{s.algo_type}:{s.name}")
+            else:
+                lines = ax_time.plot(valid_xs, valid_times, marker="o", linewidth=1, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
+                line_color = lines[0].get_color()
+                ax_mem.plot(valid_xs, valid_mems, marker="o", linewidth=1, color=line_color, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
 
         ax_time.set_title("Test vs Time (s)")
+        ax_time.set_yscale("log")
+        ax_time.grid(True, linestyle="--", alpha=0.5)
         ax_time.legend()
+        
         ax_mem.set_title("Test vs Peak Memory (MB)")
+        ax_mem.set_yscale("log")
+        ax_mem.grid(True, linestyle="--", alpha=0.5)
         ax_mem.legend()
         ax_mem.set_xticks(xs)
         fig.tight_layout()
@@ -397,11 +421,21 @@ class ShortestPathBenchmark:
             if s.name == "DFS": continue
 
             errs = [r.pct_error for r in s.records]
-            plt.plot(xs, errs, marker="o", linewidth=1, label=f"{s.algo_type}:{s.name}")
+            
+            valid_xs = [x for x, e in zip(xs, errs) if e is not None]
+            valid_errs = [e for e in errs if e is not None]
+            
+            line_color = None
+
+            if s.name in ("BFS", "UCS"):
+                lines = plt.plot(valid_xs, valid_errs, marker="o", linewidth=2.5, linestyle="solid", alpha=1.0, zorder=10, label=f"{s.algo_type}:{s.name}")
+            else:
+                lines = plt.plot(valid_xs, valid_errs, marker="o", linewidth=1, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
 
         plt.title("Test vs % Error")
         plt.xlabel("Test ID")
         plt.ylabel("% Error")
+        plt.grid(True, linestyle="--", alpha=0.5)
         plt.xticks(xs)
         plt.legend()
         plt.tight_layout()

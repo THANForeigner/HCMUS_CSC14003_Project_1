@@ -66,10 +66,9 @@ class GA_GraphColoring(GA):
             # Chọn ngẫu nhiên 1 đỉnh để đổi màu
             node = random.randint(0, self.n_nodes - 1)
             individual[node] = random.randint(0, self.num_colors - 1)
-        
-        # --- MEMETIC STEP: MIN-CONFLICTS HEURISTIC ---
-        # Giống như 2-opt của TSP hay Repair của Knapsack
-        return self.min_conflicts_tuning(individual, self.max_local_search_steps)
+            # --- MEMETIC STEP: MIN-CONFLICTS HEURISTIC ---
+            return self.min_conflicts_tuning(individual, self.max_local_search_steps)
+        return individual
     
     
 
