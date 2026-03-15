@@ -2,10 +2,10 @@ import numpy as np
 import random
 import copy
 
-ALPHA = 2  # Pheromone importance
-BETA = 4  # Heuristic importance
-RHO = 0.04  # Evaporation rate
-P_BEST = 0.05  # Probability for calculating tau limits
+ALPHA = 2  # Độ quan trọng Pheromone 
+BETA = 4  # Độ quan trọng Heuristic
+RHO = 0.04  # tỉ lệ bốc hơi
+P_BEST = 0.05  # Xác suất để tính toán các giới hạn tau
 
 class ACO_GraphColoring:
     def __init__(self, graph_dict, n_nodes, max_iter=100, n_ants=20):

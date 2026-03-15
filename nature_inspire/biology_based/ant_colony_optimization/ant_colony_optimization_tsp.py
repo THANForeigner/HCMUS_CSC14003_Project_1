@@ -29,7 +29,7 @@ class ACO_TSP:
             all_paths = []
             all_costs = []
             
-            # Construct solutions for each ant
+            # Xây dựng lời giải cho từng con kiến
             for _ in range(self.n_ants):
                 path, cost = self._construct_solution()
                 all_paths.append(path)
@@ -39,7 +39,7 @@ class ACO_TSP:
                     best_cost = cost
                     best_path = path[:]
             
-            # Update pheromones
+            # cập nhật pheromones
             self._update_pheromones(all_paths, all_costs)
             
         return best_cost, best_path
@@ -88,12 +88,12 @@ class ACO_TSP:
         return candidates[-1]
 
     def _update_pheromones(self, paths, costs):
-        # Evaporation
+        # Bay hơi
         for i in range(self.n_cities):
             for j in range(self.n_cities):
                 self.pheromone[i][j] *= (1.0 - self.evaporation_rate)
-                
-        # Deposit
+        
+        # Rải pheromone
         for path, cost in zip(paths, costs):
             deposit = self.Q / cost if cost > 0 else 0
             for i in range(self.n_cities - 1):
@@ -101,7 +101,6 @@ class ACO_TSP:
                 self.pheromone[u][v] += deposit
                 self.pheromone[v][u] += deposit
             
-            # Don't forget the return edge
             u, v = path[-1], path[0]
             self.pheromone[u][v] += deposit
             self.pheromone[v][u] += deposit

@@ -39,7 +39,6 @@ class DE:
         for gen in range(self.max_gen):
             self.history.append([list(p) for p in self.population])
             
-            # Prepare parallel arrays
             trial_population = np.zeros_like(self.population)
             
             for i in range(self.pop_size):
@@ -61,10 +60,8 @@ class DE:
                 
                 trial_population[i] = np.where(cross_points, mutant_vector, self.population[i])
                 
-            # --- EVALUATE ALL TRIAL VECTORS ONCE (SYNCHRONIZED NumPy Vector) ---
             trial_fitnesses = np.apply_along_axis(self.func, 1, trial_population)
             
-            # 3. SELECTION: Greedy
             better_idx = trial_fitnesses < self.fitness
             self.population[better_idx] = trial_population[better_idx]
             self.fitness[better_idx] = trial_fitnesses[better_idx]

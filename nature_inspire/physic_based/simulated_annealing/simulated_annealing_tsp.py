@@ -32,9 +32,9 @@ class SA_TSP(object):
                         dist += self.calculate_distance(u, v)
                 return dist
         
-        #Generate the initial state using simple greedy algorithm:
-        #- Start from a city and tranverse through the graph
-        #- Find the next shortest distance and add that node to the graph
+        # Tạo trạng thái ban đầu bằng thuật toán tham lam (greedy algorithm) đơn giản:
+        # - Bắt đầu từ một thành phố và duyệt qua đồ thị
+        # - Tìm thành phố tiếp theo có khoảng cách ngắn nhất và thêm nút đó vào hành trình
         def initial_solution(self):
                 cur_node = random.choice(self.nodes)
                 solution = 0
@@ -60,16 +60,16 @@ class SA_TSP(object):
         
         def simulated_annealing(self):
                 
-                #Generate the intial state
+                # Sinh trạng thái đầu
                 self.cur_solution_result, self.cur_solution_nodes = self.initial_solution()
                 
                 while self.T >= self.stopping_T and self.iteration < self.stopping_iter:
                         
-                        #Generate next neighbour state using the Reverse (2 - opt)
+                        # Sinh hàng xóm bằng the Reverse (2 - opt)
                         new_solution_nodes = list(self.cur_solution_nodes)
-                        l = random.randint(2, self.max_n - 1) #Generate a random length for the route
-                        i = random.randint(0, self.max_n - l) #Generate a random starting city for the route
-                        new_solution_nodes[i : (i + l)] = reversed(new_solution_nodes[i : (i + l)]) #Reverse all edges on the route
+                        l = random.randint(2, self.max_n - 1) # Sinh độ dài đường đi random
+                        i = random.randint(0, self.max_n - l) # Chọn random thành phố bắt đầu
+                        new_solution_nodes[i : (i + l)] = reversed(new_solution_nodes[i : (i + l)]) # Lật tất cả các cạnh trên đường đi
                         
                         new_solution_result = self.calculate_total_distance(new_solution_nodes)
                         delta_energy = new_solution_result - self.cur_solution_result
@@ -89,7 +89,7 @@ class SA_TSP(object):
                         self.iteration += 1 
                         self.energy_list.append(self.cur_solution_result)
                         
-        #Batch annealing to repeat simulated annealing in order to increase the accuracy of the result                  
+        # Chạy batch annealing để tăng độ chính xác               
         def batch_annealing(self, times = 10):
                 for i in range (1, times + 1):
                         self.T = self.save_T

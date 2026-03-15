@@ -18,7 +18,7 @@ class SA_GraphColoring(object):
         self.best_energy = float('inf')
         self.energy_list = []
         
-    #The graph energy will be the number of nodes that have color conflict with adjacent nodes
+    # Năng lượng của đồ thị sẽ là số lượng các đỉnh (nút) có xung đột màu sắc với các đỉnh kề nó
     def get_graph_energy(self, colored_graph):
         energy = 0
         for u,v in self.edges:
@@ -26,11 +26,11 @@ class SA_GraphColoring(object):
                 energy += 1
         return energy
     
-    #Generate the initial colored graph by randoming the colors in every nodes
+    # Tạo đồ thị có màu ban đầu bằng cách gán màu ngẫu nhiên cho mọi đỉnh (nút)
     def initial_solution(self):
         return [random.randrange(self.max_colors) for _ in range(self.max_n)]
     
-    #Get the neighbour state using the One-node Move
+    # Lấy trạng thái lân cận bằng cách sử dụng phép dịch chuyển một nút (One-node Move)
     def generate_new_solution(self, current_solution, node): 
         new_sol = current_solution.copy()
         old_color = current_solution[node] 
@@ -46,7 +46,7 @@ class SA_GraphColoring(object):
     
     def simulated_annealing(self):
         
-        #Generate the initial state
+        # Sinh trạng thái đầu
         self.cur_solution = self.initial_solution()
         self.cur_energy = self.get_graph_energy(self.cur_solution)
         self.energy_list.append(self.cur_energy)
@@ -55,10 +55,10 @@ class SA_GraphColoring(object):
              self.best_energy = self.cur_energy
              self.best_solution = self.cur_solution.copy()
         while self.T >= self.stopping_T and self.iteration < self.stopping_iter:
-            if self.best_energy == 0: #Exit when reach the most optimal result, a valid colored graph
+            if self.best_energy == 0: # Thoát khi tìm thấy biểu đồ đúng
                 break
             
-            #Generate neighbour state using One-node Move
+            # Lấy trạng thái lân cận bằng cách sử dụng phép dịch chuyển một nút (One-node Move)
             rand_node = self.get_next_node()
             new_solution = self.generate_new_solution(self.cur_solution, rand_node)
             
@@ -79,7 +79,7 @@ class SA_GraphColoring(object):
             self.iteration += 1 
             self.energy_list.append(self.cur_energy)
     
-    #Batch annealing to repeat simulated annealing in order to increase the accuracy of the result        
+    # Chạy batch annealing để tăng độ chính xác      
     def batch_annealing(self, times = 1000):
         for i in range (1, times + 1):
             if self.best_energy == 0:

@@ -17,9 +17,9 @@ class SA:
         self.bounds = bounds
         self.function = function
         self.step_size = 0.1 if step_size == -1 else step_size
-        self.D = 2 if dim == -1 else dim  # Dimension
-        self.T = 1000 if T == -1 else T  # Temperature
-        self.save_T = self.T  # Store temparature for batch simulated annealling
+        self.D = 2 if dim == -1 else dim  
+        self.T = 1000 if T == -1 else T 
+        self.save_T = self.T  # Lưu trữ nhiệt độ ban đầu để chạy batch annealing
         self.alpha = alpha if alpha >= 0 and alpha <= 1 else 0.995
         self.stopping_T = 1e-8 if stopping_T == -1 else stopping_T
         self.stopping_iter = 100000 if stopping_iter == -1 else stopping_iter
@@ -31,7 +31,6 @@ class SA:
         self.energy_list = []
         self.history = []
 
-    # Get the next neighbour state by move the current state forward or behind
     def get_neighbour(self):
         new_coords = []
         for coord in self.cur_coords:
@@ -46,7 +45,7 @@ class SA:
         self.iteration = 1
         self.T = self.save_T
 
-        # Generate the initial state
+        # Sinh trạng thái đầu
         for i in range(0, self.D):
             self.cur_coords.append(random.uniform(self.bounds[0], self.bounds[1]))
         self.cur_result = self.function(self.cur_coords)
@@ -61,7 +60,7 @@ class SA:
             new_result = self.function(new_coords)
             delta_energy = new_result - self.cur_result
 
-            # Delta energy < 0. Therefore, always accept the more optimal result
+            # Delta energy < 0. Tức kết quả tối ưu hơn nên luôn nhận
             if new_result < self.cur_result:
                 self.cur_coords = new_coords
                 self.cur_result = new_result
@@ -69,21 +68,21 @@ class SA:
                     self.best_result = new_result
                     self.best_coords = new_coords
 
-            # Delta energy >= 0. Consider accepting the sub-optimal result using the Metropolis acceptance criterion
+            # Delta energy >= 0. Kết quả ít tối ưu hơn do đó phải dùng p_accept để xem xét xem có nhận không
             else:
                 p_accept = math.exp(-delta_energy / self.T)
                 if random.uniform(0, 1) < p_accept:
                     self.cur_coords = new_coords
                     self.cur_result = new_result
 
-            # Perform the cooling schedule
+            # Lịch trình làm nguội
             self.T *= self.alpha
 
             self.iteration += 1
             self.energy_list.append(self.cur_result)
             self.history.append(list(self.cur_coords))
 
-    # Batch annealing to repeat simulated annealing in order to increase the accuracy of the result
+    # Chạy batch annealing để tăng độ chính xác
     def batch_annealing(self, times=10):
         global_best_result = float("inf")
         global_best_coords = None

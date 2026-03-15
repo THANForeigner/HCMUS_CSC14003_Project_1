@@ -38,35 +38,28 @@ class FA:
 
         self.history.append(fireflies.copy())
 
-        # print(f"--- Bắt đầu FA trên hàm {self.dim} chiều ---")
-
         for t in range(self.max_iter):
             alpha_t = self.alpha * (0.97 ** t)
             
-            # --- FULLY VECTORIZED POPULATION MOVEMENT ---
-            # 1. Calculate pairwise differences: (pop_size, pop_size, dim)
-            # diffs[i, j] = old_fireflies[j] - fireflies[i]
+            # 1. Tính chênh lệch vị trí giữa tất cả các cặp
             diffs = fireflies[np.newaxis, :, :] - fireflies[:, np.newaxis, :]
             
-            # 2. Calculate squared distances: (pop_size, pop_size)
+            # 2. Tính bình phương khoảng cách (r^2) giữa các đom đóm
             r2 = np.sum(diffs**2, axis=-1)
             
-            # 3. Calculate attraction (beta): (pop_size, pop_size)
+            # 3. Tính độ hấp dẫn (beta) dựa trên khoảng cách:
             beta = self.beta0 * np.exp(-self.gamma * r2)
             
-            # 4. Create mask where firefly j is brighter than firefly i: (pop_size, pop_size)
-            # For minimization, brighter means smaller fitness
+            # 4. Tạo mặt nạ (mask) để lọc ra trường hợp đom đóm j sáng hơn đom đóm i
+            # Do là bài toán tìm cực tiểu (minimization), "sáng hơn" đồng nghĩa với fitness nhỏ hơn
             mask = fitness[np.newaxis, :] < fitness[:, np.newaxis]
             
-            # 5. Calculate total movement from all brighter fireflies
-            # attraction_vector = sum_{j: fitness[j] < fitness[i]} beta_{ij} * (x_j - x_i)
-            # We use broadcasting to apply beta and mask to diffs
-            # (pop_size, pop_size, 1) * (pop_size, pop_size, dim) -> (pop_size, pop_size, dim)
+            # 5. Tính tổng quãng đường di chuyển do bị thu hút bởi tất cả đom đóm sáng hơn
             attractions = (beta * mask)[:, :, np.newaxis] * diffs
             total_attraction = np.sum(attractions, axis=1)
             
-            # 6. Add randomness only to fireflies that actually move or based on original FA logic
-            # Epsilon is (pop_size, dim)
+            # 6. Tạo thành phần bước nhảy ngẫu nhiên (theo logic gốc của thuật toán FA)
+            # Epsilon có kích thước (pop_size, dim)
             epsilon = np.random.uniform(-0.5, 0.5, (self.pop_size, self.dim))
             
             # Update all positions at once
@@ -85,8 +78,5 @@ class FA:
                 global_best = fireflies[min_fitness_idx].copy()
 
             self.history.append(fireflies.copy())
-
-            # if t % 10 == 0:
-            #     print(f"Vòng {t}: Best Fitness = {global_best_score:.5f}")
 
         return global_best, global_best_score

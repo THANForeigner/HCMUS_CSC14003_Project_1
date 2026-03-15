@@ -21,9 +21,9 @@ class TLBO:
         self.fitness_values = np.apply_along_axis(self.optimized_function, 1, self.population)
         self.history = []
 
-    # Select the best candidate to be a teacher,
-    # Then each candidate will learn from a teacher.
-    # candidate value will move forward to a teacher's value
+    # Chọn ra cá thể (ứng viên) tốt nhất để làm giáo viên,
+    # Sau đó, mỗi cá thể sẽ học hỏi từ giáo viên này.
+    # Giá trị của cá thể sẽ dịch chuyển hướng về phía giá trị của giáo viên
     def teaching_phase(self):
         idx = np.argmin(self.fitness_values)
         teacher = self.population[idx]
@@ -40,7 +40,7 @@ class TLBO:
         self.fitness_values[better_idx] = new_fitnesses[better_idx]
 
     def learning_phase(self):
-        # Pick random partners
+        # Chọn bạn học chung random
         partner_indices = np.zeros(self.population_size, dtype=int)
         for i in range(self.population_size):
             idxs = [idx for idx in range(self.population_size) if idx != i]
@@ -51,7 +51,7 @@ class TLBO:
         
         delta = np.random.uniform(0, 1, (self.population_size, self.num_parameters))
         
-        # Where candidate is better than partner
+        # Khi người học tốt hơn người bạn học chung
         better_mask = (self.fitness_values < partner_fitnesses)[:, np.newaxis]
         
         new_population = np.where(better_mask, 
