@@ -378,7 +378,9 @@ class ShortestPathBenchmark:
         xs = list(range(1, self.num_cases + 1))
         fig, (ax_time, ax_mem) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
 
-        for s in series_list:
+        markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+        for i, s in enumerate(series_list):
+            m = markers[i % len(markers)]
             # Matplotlib tự động bỏ qua các giá trị None (làm đứt nét vẽ)
             times = [r.time_sec for r in s.records]
             mems = [r.peak_mem_mb for r in s.records]
@@ -390,13 +392,13 @@ class ShortestPathBenchmark:
             
             # Plot DFS/UCS with high zorder
             if s.name in ("DFS", "BFS", "UCS"):
-                lines = ax_time.plot(valid_xs, valid_times, marker="o", linewidth=2.5, zorder=10, linestyle="dashed", alpha=1.0, label=f"{s.algo_type}:{s.name}")
+                lines = ax_time.plot(valid_xs, valid_times, marker=m, linewidth=2.5, zorder=10, linestyle="dashed", alpha=1.0, label=f"{s.algo_type}:{s.name}")
                 line_color = lines[0].get_color()
-                ax_mem.plot(valid_xs, valid_mems, marker="o", linewidth=2.5, zorder=10, color=line_color, linestyle="dashed", alpha=1.0, label=f"{s.algo_type}:{s.name}")
+                ax_mem.plot(valid_xs, valid_mems, marker=m, linewidth=2.5, zorder=10, color=line_color, linestyle="dashed", alpha=1.0, label=f"{s.algo_type}:{s.name}")
             else:
-                lines = ax_time.plot(valid_xs, valid_times, marker="o", linewidth=1, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
+                lines = ax_time.plot(valid_xs, valid_times, marker=m, linewidth=1, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
                 line_color = lines[0].get_color()
-                ax_mem.plot(valid_xs, valid_mems, marker="o", linewidth=1, color=line_color, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
+                ax_mem.plot(valid_xs, valid_mems, marker=m, linewidth=1, color=line_color, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
 
         ax_time.set_title("Test vs Time (s)")
         ax_time.set_yscale("log")
@@ -416,7 +418,9 @@ class ShortestPathBenchmark:
         if not MATPLOTLIB_AVAILABLE: return
         xs = list(range(1, self.num_cases + 1))
         plt.figure(figsize=(12, 5))
-        for s in series_list:
+        markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+        for i, s in enumerate(series_list):
+            m = markers[i % len(markers)]
             # Bỏ qua DFS nếu muốn vì nó không tối ưu
             if s.name == "DFS": continue
 
@@ -428,9 +432,9 @@ class ShortestPathBenchmark:
             line_color = None
 
             if s.name in ("BFS", "UCS"):
-                lines = plt.plot(valid_xs, valid_errs, marker="o", linewidth=2.5, linestyle="solid", alpha=1.0, zorder=10, label=f"{s.algo_type}:{s.name}")
+                lines = plt.plot(valid_xs, valid_errs, marker=m, linewidth=2.5, linestyle="solid", alpha=1.0, zorder=10, label=f"{s.algo_type}:{s.name}")
             else:
-                lines = plt.plot(valid_xs, valid_errs, marker="o", linewidth=1, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
+                lines = plt.plot(valid_xs, valid_errs, marker=m, linewidth=1, linestyle="dashed", alpha=0.7, label=f"{s.algo_type}:{s.name}")
 
         plt.title("Test vs % Error")
         plt.xlabel("Test ID")

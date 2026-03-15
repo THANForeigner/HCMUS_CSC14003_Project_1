@@ -4,6 +4,13 @@ from Time_and_accuracy import time_and_accuracy_test
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == '--auto':
+        print("\n[*] Starting Performance Test...")
+        performance_test()
+        print("\n[*] Starting Time and Accuracy Test...")
+        time_and_accuracy_test()
+        return
+
     while True:
         print("\n" + "=" * 55)
         print("          BENCHMARK TESTING MENU")

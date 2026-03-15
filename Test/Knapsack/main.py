@@ -279,10 +279,12 @@ class KnapsackBenchmark:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
         # 1. Execution Time
-        for s in series_list:
+        markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+        for i, s in enumerate(series_list):
+            m = markers[i % len(markers)]
             ids = [r.test_id for r in s.records if r.time_sec is not None]
             times = [r.time_sec for r in s.records if r.time_sec is not None]
-            ax1.plot(ids, times, marker="o", label=s.name)
+            ax1.plot(ids, times, marker=m, linestyle="dashed", label=s.name)
         
         ax1.set_title("Knapsack Problem - Execution Time (s)")
         ax1.set_xlabel("Test Case ID")
@@ -293,11 +295,13 @@ class KnapsackBenchmark:
         # 2. Percentage Error
         # Only if we have expected values
         has_error_data = False
-        for s in series_list:
+        markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+        for i, s in enumerate(series_list):
+            m = markers[i % len(markers)]
             ids = [r.test_id for r in s.records if r.pct_error is not None]
             errors = [r.pct_error for r in s.records if r.pct_error is not None]
             if ids:
-                ax2.plot(ids, errors, marker="x", linestyle="--", label=s.name)
+                ax2.plot(ids, errors, marker=m, linestyle="--", label=s.name)
                 has_error_data = True
                 
         if has_error_data:

@@ -71,9 +71,24 @@ def run_tsp():
     run_benchmark_with_pin("📌 RUNNING TRAVELING SALESMAN (TSP) BENCHMARK...", target_dir)
 
 
-def run_continuous_optimization():
+def run_continuous_optimization(auto_run=False):
     target_dir = os.path.join(ROOT_DIR, "Test", "Continuous_Optimization")
-    run_benchmark_with_pin("📌 RUNNING CONTINUOUS OPTIMIZATION BENCHMARK...", target_dir)
+    print(f"📌 RUNNING CONTINUOUS OPTIMIZATION BENCHMARK in {target_dir}...")
+    
+    custom_env = os.environ.copy()
+    if "PYTHONPATH" in custom_env:
+        custom_env["PYTHONPATH"] = f"{ROOT_DIR}{os.pathsep}{custom_env['PYTHONPATH']}"
+    else:
+        custom_env["PYTHONPATH"] = ROOT_DIR
+
+    try:
+        # Run directly without standard output pinning (Rich)
+        cmd = [sys.executable, "main.py"]
+        if auto_run:
+            cmd.append("--auto")
+        subprocess.run(cmd, cwd=target_dir, env=custom_env)
+    except KeyboardInterrupt:
+        print("\n[Đã dừng Thuật toán]")
 
 
 def run_visualization():
@@ -108,6 +123,22 @@ def run_all_discrete():
     print("*" * 50)
 
 
+def run_all_benchmarks():
+    print("\n" + "*" * 50)
+    print("🚀 RUNNING ALL BENCHMARKS (1-5) SEQUENTIALLY")
+    print("*" * 50)
+
+    run_continuous_optimization(auto_run=True)
+    run_knapsack()
+    run_shortest_path()
+    run_graph_coloring()
+    run_tsp()
+
+    print("\n" + "*" * 50)
+    print("✅ ALL BENCHMARKS COMPLETED")
+    print("*" * 50)
+
+
 def show_menu():
     print("            ALGORITHM BENCHMARK MENU")
     print("=" * 50)
@@ -118,6 +149,7 @@ def show_menu():
     print("5. Run Continuous Optimization Benchmark")
     print("6. Run All Discrete Benchmarks (1-4)")
     print("7. Run Algorithm Visualization")
+    print("8. Run All Benchmarks (1-5)")
     print("0. Exit")
     print("=" * 50)
 
@@ -128,7 +160,7 @@ def main():
         show_menu()
 
         try:
-            choice = input("Enter your choice (0-7): ").strip()
+            choice = input("Enter your choice (0-8): ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting...")
             sys.exit(0)
@@ -150,11 +182,13 @@ def main():
             run_all_discrete()
         elif choice == '7':
             run_visualization()
+        elif choice == '8':
+            run_all_benchmarks()
         elif choice == '0':
             print("Exiting...")
             sys.exit(0)
         else:
-            print("Invalid choice. Please enter a number between 0 and 7.")
+            print("Invalid choice. Please enter a number between 0 and 8.")
 
         if choice != '0':
             input("\nPress Enter to return to menu...")

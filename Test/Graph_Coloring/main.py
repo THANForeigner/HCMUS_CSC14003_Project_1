@@ -269,16 +269,18 @@ class GraphColoringBenchmark:
         os.makedirs(self.plot_dir, exist_ok=True)
         # 1. Time & Memory
         fig, (ax_time, ax_mem) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-        for s in series_list:
+        markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+        for i, s in enumerate(series_list):
+            m = markers[i % len(markers)]
             ids = [r.test_id for r in s.records]
             times = [max(1e-6, r.time_sec) if r.time_sec is not None else 1e-6 for r in s.records]
             mems = [r.peak_mem_mb for r in s.records]
             if s.name == "DFS":
-                ax_time.plot(ids, times, marker="o", linestyle="dashed", alpha=1.0, zorder=10, linewidth=2.5, label=s.name)
-                ax_mem.plot(ids, mems, marker="x", linestyle="dashed", alpha=1.0, zorder=10, linewidth=2.5, label=s.name)
+                ax_time.plot(ids, times, marker=m, linestyle="dashed", alpha=1.0, zorder=10, linewidth=2.5, label=s.name)
+                ax_mem.plot(ids, mems, marker=m, linestyle="dashed", alpha=1.0, zorder=10, linewidth=2.5, label=s.name)
             else:
-                ax_time.plot(ids, times, marker="o", linestyle="dashed", alpha=0.7, label=s.name)
-                ax_mem.plot(ids, mems, marker="x", linestyle="dashed", alpha=0.7, label=s.name)
+                ax_time.plot(ids, times, marker=m, linestyle="dashed", alpha=0.7, label=s.name)
+                ax_mem.plot(ids, mems, marker=m, linestyle="dashed", alpha=0.7, label=s.name)
             
         ax_time.set_title("Graph Coloring Problem - Execution Time (s)")
         ax_time.set_ylabel("Seconds")
@@ -297,13 +299,15 @@ class GraphColoringBenchmark:
         # 2. Results Quality (Num Colors)
         plt.figure(figsize=(10, 5))
         if series_list:
-            for s in series_list:
+            markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+            for i, s in enumerate(series_list):
+                m = markers[i % len(markers)]
                 ids = [r.test_id for r in s.records]
                 errs = [r.pct_error for r in s.records]
                 if s.name == "DFS":
-                    plt.plot(ids, errs, marker="o", linestyle="solid", alpha=1.0, linewidth=2.5, zorder=10, label=s.name)
+                    plt.plot(ids, errs, marker=m, linestyle="solid", alpha=1.0, linewidth=2.5, zorder=10, label=s.name)
                 else:
-                    plt.plot(ids, errs, marker="o", linestyle="dashed", alpha=0.7, label=s.name)
+                    plt.plot(ids, errs, marker=m, linestyle="dashed", alpha=0.7, label=s.name)
                 
         plt.title("Graph Coloring Problem - Error % relative to Optimal/Expected K")
         plt.ylabel("% Error (Lower is Better)")

@@ -305,10 +305,12 @@ class TSPBenchmark:
 
         # 1. Execution Time
         plt.figure(figsize=(10, 6))
-        for s in series_list:
+        markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+        for i, s in enumerate(series_list):
+            m = markers[i % len(markers)]
             ids = [r.test_id for r in s.records if r.time_sec is not None]
             times = [r.time_sec for r in s.records if r.time_sec is not None]
-            plt.plot(ids, times, marker="o", label=s.name)
+            plt.plot(ids, times, marker=m, linestyle="dashed", label=s.name)
         
         plt.title("Traveling Salesman Problem (TSP) - Execution Time (s)")
         plt.xlabel("Test Case ID")
@@ -320,10 +322,12 @@ class TSPBenchmark:
 
         # 2. Cost Comparison
         plt.figure(figsize=(10, 6))
-        for s in series_list:
+        markers = ['o', '*', 's', '^', 'D', 'v', 'p', 'h']
+        for i, s in enumerate(series_list):
+            m = markers[i % len(markers)]
             ids = [r.test_id for r in s.records if r.cost is not None]
             costs = [r.cost for r in s.records if r.cost is not None]
-            plt.plot(ids, costs, marker="x", label=s.name)
+            plt.plot(ids, costs, marker=m, linestyle="dashed", label=s.name)
         
         # Also plot expected if available (from first series that has it)
         if series_list:
