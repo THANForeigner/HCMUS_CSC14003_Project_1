@@ -19,24 +19,24 @@ import os
 from pathlib import Path
 from typing import Any, List, NamedTuple, Optional, Tuple
 
-# ── Root path ──────────────────────────────────────────────────────────────────
+# Root path
 # input_validator.py nằm ở problems/ → root là parent của problems/
 _ROOT = Path(__file__).parent.parent
 
-# ── Path constants ─────────────────────────────────────────────────────────────
+#Path constants 
 KNAPSACK_DIR       = str(_ROOT / "Test" / "Knapsack"           / "tests_knapsack")
 GRAPH_DIR          = str(_ROOT / "Test" / "Graph_Coloring"     / "tests_graph_coloring")
 TSP_DIR            = str(_ROOT / "Test" / "Traveling_Sale_Man" / "tests_tsp")
 SP_UNWEIGHTED_DIR  = str(_ROOT / "Test" / "Shortest_Path"      / "tests_shortest_unweighted")
 SP_WEIGHTED_DIR    = str(_ROOT / "Test" / "Shortest_Path"      / "tests_shortest_weighted")
 
-# ── Continuous Optimization config ─────────────────────────────────────────────
+# Continuous Optimization config
 CONT_FUNCS = ["sphere", "rastrigin", "rosenbrock", "griewank", "ackley"]
 CONT_DIMS  = [10, 30]          # dimensions thường dùng để scalability test
 CONT_RUNS  = 10                # số lần chạy mỗi thuật toán để lấy mean/std
 CONT_ALGS  = ["HC", "SA", "DE", "PSO", "ABC", "FA", "CS", "TLBO"]
 
-# ── Case types (NamedTuple) ────────────────────────────────────────────────────
+# Case types (NamedTuple)
 
 class KnapsackCase(NamedTuple):
     id: int
@@ -69,7 +69,7 @@ class ContCase(NamedTuple):
     dim: int             # number of dimensions
     # func, lb, ub được lấy runtime qua get_problem(func_name) từ problems.problem
 
-# ── Loaders ───────────────────────────────────────────────────────────────────
+# Loaders 
 
 def load_knapsack_cases(tests_dir: str = KNAPSACK_DIR, num: int = 15) -> List[KnapsackCase]:
     """Đọc tất cả test cases Knapsack. Format file: line1='n cap', các dòng sau='w v'"""
@@ -164,7 +164,7 @@ def load_cont_cases(funcs=None, dims=None) -> List[ContCase]:
     return [ContCase(fn, d) for fn in funcs for d in dims]
 
 
-# ── Internal helpers ──────────────────────────────────────────────────────────
+# Internal helpers 
 
 def _load_sp_cases(tests_dir: str, num: int, weighted: bool) -> List[SPCase]:
     cases = []
@@ -217,7 +217,7 @@ def _read_ans_int(path: str) -> Optional[int]:
         return None
 
 
-# ── Self-test ─────────────────────────────────────────────────────────────────
+# Self-test 
 
 if __name__ == "__main__":
     print("[ Paths ]")
